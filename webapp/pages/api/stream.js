@@ -1,5 +1,6 @@
 import { validateAuth } from '@lib/auth';
 const clientPromise = require('@lib/valkey');
+const streamClientPromise = require('@lib/valkey').streamClient;
 
 export default async function handler(req, res) {
   // Validate either API key or JWT
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const client = await clientPromise;
+    const client = await streamClientPromise;
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');

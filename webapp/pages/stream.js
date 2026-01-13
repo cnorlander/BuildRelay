@@ -8,6 +8,7 @@ export default function StreamPage() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [debug, setDebug] = useState('Initializing...');
 
   useEffect(() => {
     let abortController = null;
@@ -58,27 +59,36 @@ export default function StreamPage() {
         setConnected(true);
         setLoading(false);
         setError(null);
+        setDebug('Connected to live stream');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let messageCount = 0;
+        let chunkCount = 0;
 
         while (true) {
           const { done, value } = await reader.read();
+          chunkCount++;
           
           if (done) {
+            setDebug('Stream ended');
             break;
           }
 
           const chunk = decoder.decode(value, { stream: true });
+          console.log('Chunk', chunkCount, ':', chunk.substring(0, 100), 'length:', chunk.length);
           
           buffer += chunk;
           const lines = buffer.split('\n');
           
           buffer = lines.pop() || '';
+
+          console.log('Split into', lines.length, 'lines');
           
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
+            console.log('Line', i, ':', line.substring(0, 80));
             
             if (line.trim() === '') {
               continue;
@@ -87,32 +97,47 @@ export default function StreamPage() {
             if (line.startsWith('data: ')) {
               try {
                 const jsonStr = line.slice(6);
+                console.log('Parsing JSON:', jsonStr.substring(0, 100));
                 const message = JSON.parse(jsonStr);
+                messageCount++;
+                
+                setDebug(`Received ${messageCount} new messages`);
 
-                if (message.type === 'entry') {
+                if (message.type === 'connected') {
+                  console.log('Stream connected:', message);
+                } else if (message.type === 'entry') {
+                  console.log('Received new entry:', message.id);
                   setEntries((prev) => {
-                    const newEntries = [message, ...prev];
+                    const newEntries = [message, ...prev]; // No limit
+                    console.log('Updated entries, total:', newEntries.length);
                     return newEntries;
                   });
                 } else if (message.type === 'error') {
+                  console.error('Stream error:', message.message);
                   setError(message.message);
+                  setDebug('Stream error: ' + message.message);
                 }
               } catch (parseErr) {
-                // Ignore parse errors
+                console.error('Error parsing message:', parseErr, 'line:', line);
+                setDebug('Parse error: ' + parseErr.message);
               }
             }
           }
         }
       } catch (err) {
         if (err.name === 'AbortError') {
+          console.log('Stream connection aborted');
           return;
         }
         
+        console.error('Stream connection error:', err);
         setConnected(false);
         setError(err.message || 'Connection failed');
+        setDebug('Error: ' + (err.message || 'Connection failed'));
         
         reconnectTimeout = setTimeout(() => {
           if (!abortController?.signal.aborted) {
+            console.log('Attempting to reconnect...');
             streamNewEntries(startFromId);
           }
         }, 3000);
@@ -143,6 +168,8 @@ export default function StreamPage() {
           <span className="entry-count">{entries.length} entries</span>
         </div>
 
+        <div className="debug-info">{debug}</div>
+
         {loading && <div className="loading">Connecting to stream...</div>}
         {error && !loading && <div className="error">Error: {error}</div>}
 
@@ -172,9 +199,7 @@ export default function StreamPage() {
                   .reverse()
                   .map((entry) => {
                     const isError = entry.data?.level === 'e';
-                    const timestamp = entry.data?.timestamp 
-                      ? new Date(parseFloat(entry.data.timestamp) * 1000).toLocaleTimeString()
-                      : '';
+                    const timestamp = entry.data?.timestamp;
                     const prefix = isError ? '[ERROR]' : '[INFO]';
                     return `${prefix} ${timestamp} ${entry.data?.line || ''}`;
                   })
@@ -217,6 +242,16 @@ export default function StreamPage() {
 
         .entry-count {
           color: #666;
+        }
+
+        .debug-info {
+          background: #f0f0f0;
+          padding: 8px 12px;
+          border-radius: 4px;
+          margin-bottom: 12px;
+          font-size: 12px;
+          color: #666;
+          font-family: monospace;
         }
 
         .loading {
