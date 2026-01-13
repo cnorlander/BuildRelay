@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout'
+import JobsList from '../components/JobsList'
+import BuildsList from '../components/BuildsList'
 
 export default function Home() {
   const [jobs, setJobs] = useState({ queuedJobs: [], runningJobs: [], completeJobs: [] })
@@ -19,39 +21,16 @@ export default function Home() {
       })
   }, [])
 
-  if (loading) return <div>Loading...</div>
+
   if (error) return <div>Error: {error}</div>
 
   return (
     <Layout>
       <h1>Distribution Dashboard</h1>
-
-      <h2>Queued Jobs</h2>
-      <ul>
-        {jobs.queuedJobs.map((job) => (
-          <li key={job.id}>
-            {job.project} - {job.platform} - {job.status}
-          </li>
-        ))}
-      </ul>
-
-      <h2>Running Jobs</h2>
-      <ul>
-        {jobs.runningJobs.map((job) => (
-          <li key={job.id}>
-            {job.project} - {job.platform} - {job.status}
-          </li>
-        ))}
-      </ul>
-
-      <h2>Complete Jobs (Last 20)</h2>
-      <ul>
-        {jobs.completeJobs.map((job) => (
-          <li key={job.id}>
-            {job.project} - {job.platform} - {job.status}
-          </li>
-        ))}
-      </ul>
+      <BuildsList />
+      <JobsList title="Queued Jobs" jobs={jobs.queuedJobs} />
+      <JobsList title="Running Jobs" jobs={jobs.runningJobs} />
+      <JobsList title="Complete Jobs (Last 20)" jobs={jobs.completeJobs} />
     </Layout>
   )
 }

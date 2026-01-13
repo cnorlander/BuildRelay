@@ -4,7 +4,7 @@ const clientPromise = require('@lib/valkey'); // Import Valkey GLIDE client prom
 const { randomUUID } = require('crypto');
 
 export default async function handler(req, res) {
-  await ensureInitialized();
+
 
   // Validate either API key or JWT
   if (!validateAuth(req)) {

@@ -12,7 +12,10 @@ export default function Header() {
   return (
     <header className="header">
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Link href="/">Home</Link>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <Link href="/">Home</Link>
+          <Link href="/destinations">Destinations</Link>
+        </div>
         <button onClick={handleLogout} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>
           Logout
         </button>

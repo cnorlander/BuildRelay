@@ -1,5 +1,7 @@
 import json
 import os
+import random
+import time
 import redis
 
 # Connect to Valkey
@@ -19,6 +21,27 @@ while True:
     _, raw = r.blpop(QUEUED_JOBS)
 
     job = json.loads(raw)
+    STREAM_NAME = f'job_stream:{job["id"]}'
+    DURATION_SECONDS = 60
+    INTERVAL_SECONDS = 0.1
+    start_time = time.monotonic()
+
+    while True:
+        elapsed = time.monotonic() - start_time
+        if elapsed >= DURATION_SECONDS:
+            break
+
+        value = random.random()
+
+        r.xadd(
+            STREAM_NAME,
+            {
+                "value": value,
+                "timestamp": time.monotonic(),
+            },
+        )
+
+        time.sleep(INTERVAL_SECONDS)
     
 
     # Update the job
