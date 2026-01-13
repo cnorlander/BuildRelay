@@ -1,0 +1,13 @@
+# ...existing code...
+.env
+node_modules/
+.next/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+*.log
+dist/
+build/
+# ...existing code...
