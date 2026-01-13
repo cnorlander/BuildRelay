@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { github } from 'react-syntax-highlighter/dist/cjs/styles/hljs';
+import SyntaxHighlighter from 'react-syntax-highlighter';
 import Layout from '../components/Layout';
 
 export default function StreamPage() {
@@ -6,19 +8,46 @@ export default function StreamPage() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [debug, setDebug] = useState('Initializing...');
 
   useEffect(() => {
     let abortController = null;
     let reconnectTimeout = null;
 
-    const connectToStream = async () => {
+    const loadHistoryAndStream = async () => {
       try {
-        setDebug('Connecting...');
+        const historyResponse = await fetch('/api/stream-history', {
+          credentials: 'include',
+        });
+
+        if (!historyResponse.ok) {
+          throw new Error(`History fetch failed: ${historyResponse.status}`);
+        }
+
+        const historyData = await historyResponse.json();
+        setEntries(historyData.entries.reverse());
+        
+        const lastId = historyData.lastId;
+
+        // Now start streaming new entries from where we left off
+        await streamNewEntries(lastId);
+      } catch (err) {
+        setError(err.message || 'Failed to load history');
+      }
+    };
+
+    const streamNewEntries = async (startFromId) => {
+      try {
         abortController = new AbortController();
         
-        const response = await fetch('/api/stream', {
-          credentials: 'include', // Include cookies (JWT)
+        const streamUrl = new URL('/api/stream', window.location.href);
+        if (startFromId && startFromId !== '0-0') {
+          streamUrl.searchParams.set('startId', startFromId);
+        } else {
+          streamUrl.searchParams.set('startId', '$');
+        }
+        
+        const response = await fetch(streamUrl.toString(), {
+          credentials: 'include',
           signal: abortController.signal,
         });
 
@@ -29,97 +58,68 @@ export default function StreamPage() {
         setConnected(true);
         setLoading(false);
         setError(null);
-        setDebug('Connected, reading stream...');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let messageCount = 0;
-        let chunkCount = 0;
 
         while (true) {
           const { done, value } = await reader.read();
-          chunkCount++;
           
           if (done) {
-            setDebug('Stream ended');
             break;
           }
 
           const chunk = decoder.decode(value, { stream: true });
-          console.log('Chunk', chunkCount, ':', chunk.substring(0, 100), 'length:', chunk.length);
           
           buffer += chunk;
           const lines = buffer.split('\n');
           
-          // Keep the last incomplete line in the buffer
           buffer = lines.pop() || '';
-
-          console.log('Split into', lines.length, 'lines');
           
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            console.log('Line', i, ':', line.substring(0, 80));
             
             if (line.trim() === '') {
-              continue; // Skip empty lines
+              continue;
             }
             
             if (line.startsWith('data: ')) {
               try {
                 const jsonStr = line.slice(6);
-                console.log('Parsing JSON:', jsonStr.substring(0, 100));
                 const message = JSON.parse(jsonStr);
-                messageCount++;
-                
-                setDebug(`Received ${messageCount} messages`);
 
-                if (message.type === 'connected') {
-                  console.log('Connected to stream:', message);
-                  setConnected(true);
-                  setLoading(false);
-                  setError(null);
-                  setDebug('Stream connected, waiting for entries...');
-                } else if (message.type === 'entry') {
-                  console.log('Received entry:', message.id);
+                if (message.type === 'entry') {
                   setEntries((prev) => {
-                    const newEntries = [message, ...prev].slice(0, 50);
-                    console.log('Updated entries, total:', newEntries.length);
+                    const newEntries = [message, ...prev];
                     return newEntries;
                   });
                 } else if (message.type === 'error') {
-                  console.error('Stream error:', message.message);
                   setError(message.message);
-                  setDebug('Stream error: ' + message.message);
                 }
               } catch (parseErr) {
-                console.error('Error parsing message:', parseErr, 'line:', line);
-                setDebug('Parse error: ' + parseErr.message);
+                // Ignore parse errors
               }
             }
           }
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          console.log('Stream connection aborted');
           return;
         }
         
-        console.error('Stream connection error:', err);
         setConnected(false);
         setError(err.message || 'Connection failed');
-        setDebug('Error: ' + (err.message || 'Connection failed'));
         
-        // Attempt to reconnect after 3 seconds
         reconnectTimeout = setTimeout(() => {
           if (!abortController?.signal.aborted) {
-            connectToStream();
+            streamNewEntries(startFromId);
           }
         }, 3000);
       }
     };
 
-    connectToStream();
+    loadHistoryAndStream();
 
     return () => {
       if (abortController) {
@@ -143,8 +143,6 @@ export default function StreamPage() {
           <span className="entry-count">{entries.length} entries</span>
         </div>
 
-        <div className="debug-info">{debug}</div>
-
         {loading && <div className="loading">Connecting to stream...</div>}
         {error && !loading && <div className="error">Error: {error}</div>}
 
@@ -152,24 +150,37 @@ export default function StreamPage() {
           {entries.length === 0 ? (
             <div className="no-entries">No entries yet</div>
           ) : (
-            entries.map((entry) => (
-              <div key={entry.id} className="entry-card">
-                <div className="entry-header">
-                  <span className="entry-id">{entry.id}</span>
-                  <span className="entry-timestamp">
-                    {new Date(parseInt(entry.id.split('-')[0])).toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="entry-data">
-                  {Object.entries(entry.data).map(([key, value]) => (
-                    <div key={key} className="entry-field">
-                      <span className="field-name">{key}:</span>
-                      <span className="field-value">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
+            <div className="log-container">
+              <SyntaxHighlighter
+                language="log"
+                style={github}
+                showLineNumbers
+                lineNumberStyle={{ color: '#999', paddingRight: '20px' }}
+                wrapLines
+                wrapLongLines
+                customStyle={{
+                  padding: '12px',
+                  margin: '0',
+                  backgroundColor: '#f6f8fa',
+                  borderRadius: '4px',
+                  overflow: 'auto',
+                  fontSize: '13px',
+                }}
+              >
+                {entries
+                  .slice()
+                  .reverse()
+                  .map((entry) => {
+                    const isError = entry.data?.level === 'e';
+                    const timestamp = entry.data?.timestamp 
+                      ? new Date(parseFloat(entry.data.timestamp) * 1000).toLocaleTimeString()
+                      : '';
+                    const prefix = isError ? '[ERROR]' : '[INFO]';
+                    return `${prefix} ${timestamp} ${entry.data?.line || ''}`;
+                  })
+                  .join('\n')}
+              </SyntaxHighlighter>
+            </div>
           )}
         </div>
       </div>
@@ -208,16 +219,6 @@ export default function StreamPage() {
           color: #666;
         }
 
-        .debug-info {
-          background: #f0f0f0;
-          padding: 8px 12px;
-          border-radius: 4px;
-          margin-bottom: 12px;
-          font-size: 12px;
-          color: #666;
-          font-family: monospace;
-        }
-
         .loading {
           text-align: center;
           padding: 40px;
@@ -240,64 +241,9 @@ export default function StreamPage() {
           color: #999;
         }
 
-        .entries-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .entry-card {
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 16px;
-          background: #fff;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        .entry-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #f0f0f0;
-        }
-
-        .entry-id {
-          font-family: monospace;
-          font-weight: 600;
-          color: #1f2937;
-          font-size: 13px;
-        }
-
-        .entry-timestamp {
-          font-size: 12px;
-          color: #999;
-        }
-
-        .entry-data {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .entry-field {
-          display: flex;
-          gap: 8px;
-          font-size: 14px;
-        }
-
-        .field-name {
-          font-weight: 500;
-          color: #4b5563;
-          min-width: 120px;
-        }
-
-        .field-value {
-          color: #1f2937;
-          word-break: break-all;
-          font-family: monospace;
-          font-size: 13px;
+        .log-container {
+          border-radius: 4px;
+          overflow: hidden;
         }
       `}</style>
     </Layout>

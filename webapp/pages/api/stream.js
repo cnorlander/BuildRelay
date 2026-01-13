@@ -2,19 +2,10 @@ import { validateAuth } from '@lib/auth';
 const clientPromise = require('@lib/valkey');
 
 export default async function handler(req, res) {
-  console.log('Stream API: Received request');
-  
   // Validate either API key or JWT
   if (!validateAuth(req)) {
-    console.log('Stream API: Auth validation failed');
-    console.log('Headers:', {
-      'x-api-key': req.headers['x-api-key'],
-      'cookie': req.headers.cookie ? 'present' : 'missing'
-    });
     return res.status(401).json({ error: 'Invalid or missing authentication' });
   }
-
-  console.log('Stream API: Auth validation passed');
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -41,13 +32,9 @@ export default async function handler(req, res) {
       res.flush();
     }
 
-    console.log('Stream API: Handler started, client connected');
-
     // Function to read and send stream entries
     const sendStreamEntries = async () => {
       try {
-        console.log('XREAD: Reading from', startId);
-        
         // Use customCommand for raw Redis XREAD command
         const result = await client.customCommand([
           'XREAD',
@@ -61,13 +48,10 @@ export default async function handler(req, res) {
         ]);
 
         if (result && Array.isArray(result) && result.length > 0) {
-          const entryCount = result[0].value.length;
-          console.log('XREAD: Got', entryCount, 'entries');
-          
           // Result format: [{ key: 'stream_name', value: [{ key: 'id', value: [['field', 'value'], ...] }, ...] }]
           result.forEach((streamData) => {
             if (streamData && streamData.value && Array.isArray(streamData.value)) {
-              streamData.value.forEach((entry, idx) => {
+              streamData.value.forEach((entry) => {
                 if (entry && entry.key && entry.value) {
                   const id = entry.key;
                   startId = id;
@@ -85,10 +69,7 @@ export default async function handler(req, res) {
                     data: data,
                   })}\n\n`;
                   
-                  console.log('Sending entry', id, '- data keys:', Object.keys(data));
-                  console.log('Writing to response:', message.length, 'bytes');
                   const writeResult = res.write(message);
-                  console.log('Write result:', writeResult);
                   if (res.flush) {
                     res.flush();
                   }
@@ -103,7 +84,7 @@ export default async function handler(req, res) {
         }
       } catch (err) {
         if (!res.destroyed) {
-          console.error('Stream read error:', err.message);
+          console.error('Stream error:', err.message);
           res.write(
             `data: ${JSON.stringify({
               type: 'error',
@@ -117,7 +98,7 @@ export default async function handler(req, res) {
 
     // Handle client disconnect
     req.on('close', () => {
-      // Client disconnected, stream will end naturally
+      // Client disconnected
     });
 
     // Send a heartbeat every 30 seconds to keep connection alive

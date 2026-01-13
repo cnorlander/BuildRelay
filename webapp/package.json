@@ -15,6 +15,7 @@
     "@valkey/valkey-glide": "latest",
     "dotenv": "latest",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "latest"
+    "jsonwebtoken": "latest",
+    "react-syntax-highlighter": "latest"
   }
 }

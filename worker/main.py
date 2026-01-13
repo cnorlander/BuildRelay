@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 import random
@@ -33,13 +34,12 @@ while True:
         if elapsed >= DURATION_SECONDS:
             break
 
-        value = random.random()
-
         r.xadd(
             STREAM_NAME,
             {
-                "value": line,
-                "timestamp": line,
+                "line": "this is a test " + str(line),
+                "timestamp": datetime.now().isoformat(),
+                "level": "s"
             },
         )
         line += 1
