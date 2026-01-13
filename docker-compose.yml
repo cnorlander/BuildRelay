@@ -8,6 +8,16 @@ services:
       - valkey
     env_file:
       - .env
+    volumes:
+      - ./builds:/builds
+  workers:
+    build: ./worker
+    depends_on:
+      - valkey
+    env_file:
+      - .env
+    volumes:
+      - ./builds:/builds
   valkey:
     image: valkey/valkey:latest
     ports:

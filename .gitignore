@@ -1,4 +1,3 @@
-# ...existing code...
 .env
 node_modules/
 .next/
@@ -10,4 +9,3 @@ Thumbs.db
 *.log
 dist/
 build/
-# ...existing code...
