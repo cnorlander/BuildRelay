@@ -24,6 +24,7 @@ export default async function handler(req, res) {
 
     // Start from the latest entries
     let startId = req.query.startId || '$';
+    const streamName = req.query.stream || 'test_stream';
 
     // Send initial connection message
     res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to stream', startId: startId })}\n\n`);
@@ -44,7 +45,7 @@ export default async function handler(req, res) {
           'COUNT',
           '10',
           'STREAMS',
-          'test_stream',
+          streamName,
           startId
         ]);
 

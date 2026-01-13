@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
 
   if (req.method === 'POST') {
-    const { project, services, platform, ingestPath} = req.body || {};
+    const { project, services, platform, ingestPath, cdn_destination } = req.body || {};
 
     const errors = [];
     if (!project || typeof project !== 'string' || project.trim().length < 1) {
@@ -38,6 +38,9 @@ export default async function handler(req, res) {
     }
     if (ingestPath && (ingestPath.includes('..') || ingestPath.startsWith('/'))) {
       errors.push('security error: ingestPath cannot be absolute or contain ".."');
+    }
+    if (cdn_destination && typeof cdn_destination !== 'object') {
+      errors.push('cdn_destination must be an object');
     }
 
 
@@ -71,6 +74,7 @@ export default async function handler(req, res) {
       completedAt: null,
       ingestPath,
       absoluteIngestPath,
+      cdn_destination: cdn_destination || null,
       metadata: {}
     };
 

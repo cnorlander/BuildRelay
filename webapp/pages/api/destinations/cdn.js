@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { label, path, bucketName, region, accessKeyId, secretAccessKey, endpoint, filenameFormat, encryption } = req.body || {};
+    const { label, path, bucketName, region, accessKeyId, secretAccessKey, endpoint, filenameFormat, encryption, isPublic } = req.body || {};
 
     const errors = [];
     if (!label || typeof label !== 'string' || label.trim().length < 1) {
@@ -52,6 +52,9 @@ export default async function handler(req, res) {
     if (typeof encryption !== 'boolean') {
       errors.push('encryption must be a boolean');
     }
+    if (typeof isPublic !== 'boolean') {
+      errors.push('isPublic must be a boolean');
+    }
 
     if (errors.length) {
       return res.status(400).json({ errors });
@@ -69,6 +72,7 @@ export default async function handler(req, res) {
       endpoint: endpoint ? endpoint.trim() : null,
       filenameFormat: filenameFormat.trim(),
       encryption: encryption,
+      isPublic: isPublic,
       createdAt: new Date().toISOString(),
     };
 
@@ -82,7 +86,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PUT') {
-    const { id, label, path, bucketName, region, accessKeyId, secretAccessKey, endpoint, filenameFormat, encryption } = req.body || {};
+    const { id, label, path, bucketName, region, accessKeyId, secretAccessKey, endpoint, filenameFormat, encryption, isPublic } = req.body || {};
 
     if (!id) {
       return res.status(400).json({ error: 'ID is required' });
@@ -108,6 +112,7 @@ export default async function handler(req, res) {
         endpoint: endpoint !== undefined ? endpoint : destinations[index].endpoint,
         filenameFormat: filenameFormat || destinations[index].filenameFormat,
         encryption: encryption !== undefined ? encryption : destinations[index].encryption,
+        isPublic: isPublic !== undefined ? isPublic : destinations[index].isPublic,
         updatedAt: new Date().toISOString(),
       };
 

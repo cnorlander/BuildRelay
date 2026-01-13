@@ -15,10 +15,13 @@ export default async function handler(req, res) {
   try {
     const client = await clientPromise;
 
+    // Allow specifying which stream to read from, default to test_stream
+    const streamName = req.query.stream || 'test_stream';
+
     // Get all entries from the stream
     const result = await client.customCommand([
       'XRANGE',
-      'test_stream',
+      streamName,
       '-',
       '+',
       'COUNT',
