@@ -63,4 +63,8 @@ while True:
             job["cdnUrl"] = result['url']
         except Exception as e:
             stream.log(f"CDN upload failed: {str(e)}", level="error")
+
+    for i in range(100):
+        stream.log(f"{i}")
+        time.sleep(1.05)  # Simulate work being done
     print("Processed job:", job)

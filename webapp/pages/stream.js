@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { github } from 'react-syntax-highlighter/dist/cjs/styles/hljs';
-import SyntaxHighlighter from 'react-syntax-highlighter';
 import Layout from '../components/Layout';
 
 export default function StreamPage() {
@@ -109,7 +107,6 @@ export default function StreamPage() {
                   console.log('Received new entry:', message.id);
                   setEntries((prev) => {
                     const newEntries = [message, ...prev]; // No limit
-                    console.log('Updated entries, total:', newEntries.length);
                     return newEntries;
                   });
                 } else if (message.type === 'error') {
@@ -178,33 +175,30 @@ export default function StreamPage() {
             <div className="no-entries">No entries yet</div>
           ) : (
             <div className="log-container">
-              <SyntaxHighlighter
-                language="log"
-                style={github}
-                showLineNumbers
-                lineNumberStyle={{ color: '#999', paddingRight: '20px' }}
-                wrapLines
-                wrapLongLines
-                customStyle={{
-                  padding: '12px',
-                  margin: '0',
-                  backgroundColor: '#f6f8fa',
-                  borderRadius: '4px',
-                  overflow: 'auto',
-                  fontSize: '13px',
-                }}
-              >
+              <pre className="log-output">
                 {entries
                   .slice()
                   .reverse()
-                  .map((entry) => {
+                  .map((entry, idx) => {
                     const isError = entry.data?.level === 'e';
-                    const timestamp = entry.data?.timestamp;
+                    let timestamp = entry.data?.timestamp || '';
+                    
+                    // Parse and format timestamp more compactly
+                    if (timestamp) {
+                      try {
+                        const date = new Date(timestamp);
+                        timestamp = date.toLocaleTimeString();
+                      } catch (e) {
+                        // Keep original if parse fails
+                      }
+                    }
+                    
                     const prefix = isError ? '[ERROR]' : '[INFO]';
-                    return `${prefix} ${timestamp} ${entry.data?.line || ''}`;
+                    const line = (entry.data?.line || '').replace(/\n/g, ' ');
+                    return `${String(idx + 1).padStart(4, ' ')} ${prefix} ${timestamp} ${line}`;
                   })
                   .join('\n')}
-              </SyntaxHighlighter>
+              </pre>
             </div>
           )}
         </div>
@@ -279,6 +273,36 @@ export default function StreamPage() {
         .log-container {
           border-radius: 4px;
           overflow: hidden;
+          background: #f6f8fa;
+          max-height: 70vh;
+        }
+
+        .log-output {
+          margin: 0;
+          padding: 12px;
+          font-size: 13px;
+          font-family: 'Courier New', monospace;
+          white-space: pre;
+          overflow: auto;
+          color: #333;
+          background: #f6f8fa;
+          border-radius: 4px;
+          line-height: 1.5;
+          max-height: 70vh;
+        }
+
+        .log-container :global(pre) {
+          white-space: pre !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+          word-wrap: normal !important;
+        }
+
+        .log-container :global(code) {
+          white-space: pre !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+          word-wrap: normal !important;
         }
       `}</style>
     </Layout>
