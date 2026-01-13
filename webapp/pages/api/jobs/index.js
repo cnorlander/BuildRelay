@@ -1,7 +1,16 @@
+import { validateAuth } from '@lib/auth';
+import { ensureInitialized } from '@lib/init';
 const clientPromise = require('@lib/valkey'); // Import Valkey GLIDE client promise
 const { randomUUID } = require('crypto');
 
 export default async function handler(req, res) {
+  await ensureInitialized();
+
+  // Validate either API key or JWT
+  if (!validateAuth(req)) {
+    return res.status(401).json({ error: 'Invalid or missing authentication' });
+  }
+
   const client = await clientPromise; // Await the client
 
   if (req.method === 'GET') {
@@ -25,6 +34,45 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('Error getting jobs from Valkey:', err);
       return res.status(500).json({ error: 'Failed to get jobs' });
+    }
+  }
+
+  if (req.method === 'POST') {
+    const { project, services, platform } = req.body || {};
+
+    const errors = [];
+    if (!project || typeof project !== 'string' || project.trim().length < 1) {
+      errors.push('project must be a non-empty string');
+    }
+    if (!Array.isArray(services) || services.length === 0) {
+      errors.push('services must be a non-empty array');
+    }
+    if (!platform || typeof platform !== 'string' || platform.trim().length < 1) {
+      errors.push('platform must be a non-empty string');
+    }
+
+    if (errors.length) {
+      return res.status(400).json({ errors });
+    }
+
+    const newJob = {
+      id: randomUUID(),
+      project: project.trim(),
+      services,
+      platform: platform.trim(),
+      status: 'Queued',
+      buildStep: 'Waiting for worker assignment.',
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      metadata: {}
+    };
+
+    try {
+      await client.lpush('queued_jobs', JSON.stringify(newJob));
+      return res.status(201).json({ job: newJob });
+    } catch (err) {
+      console.error('Error saving job to Valkey:', err);
+      return res.status(500).json({ error: 'Failed to create job' });
     }
   }
 

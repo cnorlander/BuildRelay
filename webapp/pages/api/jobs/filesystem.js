@@ -1,11 +1,22 @@
 import { error } from 'console';
+import { validateApiKey } from '@lib/auth';
 import { stat } from "fs/promises";
 
 const env = require('@lib/env');
 const clientPromise = require('@lib/valkey'); // Import Valkey GLIDE client promise
 const { randomUUID } = require('crypto');
 
+function requireApiKey(req) {
+  const apiKey = req.headers['x-api-key'];
+  return apiKey && validateApiKey(apiKey);
+}
+
 export default async function handler(req, res) {
+  // Require API key for all requests
+  if (!requireApiKey(req)) {
+    return res.status(401).json({ error: 'API key required' });
+  }
+
   const client = await clientPromise; // Await the client
 
 
@@ -72,6 +83,6 @@ export default async function handler(req, res) {
     }
   }
 
-  res.setHeader('Allow', ['GET', 'POST'])
+  res.setHeader('Allow', ['POST'])
   res.status(405).end(`Method ${req.method} Not Allowed`)
 }

@@ -32,6 +32,13 @@ html,body,#__next {
   background:transparent;
 }
 
+.login-container{
+  padding-top: 20%;
+  display:flex;
+  justify-content:center;
+  height:100vh;
+}
+
 .page .footer{
   text-align:center;
   padding:20px 0;
@@ -50,7 +57,7 @@ h1{ margin-top:0; }
   padding:16px;
   border-radius:8px;
   box-shadow:0 1px 3px rgba(16,24,40,0.04);
-  max-width:420px;
+  min-width:420px;
 }
 .form label{
   display:flex;
@@ -74,4 +81,8 @@ h1{ margin-top:0; }
   border-radius:6px;
   cursor:pointer;
   font-weight:600;
+}
+.form button:disabled{
+  opacity:0.6;
+  cursor:not-allowed;
 }

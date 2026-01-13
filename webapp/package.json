@@ -5,13 +5,16 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000"
+    "start": "next start -p 3000",
+    "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "@valkey/valkey-glide": "latest",
-    "dotenv": "latest"
+    "dotenv": "latest",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "latest"
   }
 }
