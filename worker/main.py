@@ -22,9 +22,11 @@ while True:
 
     job = json.loads(raw)
     STREAM_NAME = f'job_stream:{job["id"]}'
+    STREAM_NAME = 'test_stream'
     DURATION_SECONDS = 60
     INTERVAL_SECONDS = 0.1
     start_time = time.monotonic()
+    line = 0
 
     while True:
         elapsed = time.monotonic() - start_time
@@ -36,10 +38,11 @@ while True:
         r.xadd(
             STREAM_NAME,
             {
-                "value": value,
-                "timestamp": time.monotonic(),
+                "value": line,
+                "timestamp": line,
             },
         )
+        line += 1
 
         time.sleep(INTERVAL_SECONDS)
     
