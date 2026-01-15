@@ -12,6 +12,8 @@ services:
       - ./builds:/builds
   workers:
     build: ./worker
+    environment:
+      - NUM_WORKERS=1
     depends_on:
       - valkey
     env_file:
