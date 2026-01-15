@@ -1,22 +1,21 @@
 import os
 import boto3
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 
 class CDNUploader:
     """Handles uploading files to S3-compatible CDN services"""
     
-    def __init__(self, cdn_destination):
-        """
-        Initialize CDN uploader with destination config
-        """
+    def __init__(self, cdn_destination: Dict[str, Any]) -> None:
+        """Initialize CDN uploader with destination config"""
         if not cdn_destination:
             raise ValueError("cdn_destination cannot be None or empty")
         
-        self.config = cdn_destination
+        self.config: Dict[str, Any] = cdn_destination
         self._init_s3_client()
     
-    def _init_s3_client(self):
+    def _init_s3_client(self) -> None:
         """Initialize boto3 S3 client"""
         # Validate required fields
         required_fields = ['region', 'accessKeyId', 'secretAccessKey', 'bucketName']
@@ -39,7 +38,7 @@ class CDNUploader:
         
         self.s3_client = session.client('s3', **client_kwargs)
     
-    def upload_file(self, file_path, stream_logger=None):
+    def upload_file(self, file_path: str, stream_logger: Optional[Any] = None) -> Dict[str, Any]:
         """
         Upload a file to the CDN
         
@@ -98,9 +97,11 @@ class CDNUploader:
                 region = self.config.get('region', 'us-east-1')
                 url = f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
             
+            # Log success of upload
             if stream_logger:
                 stream_logger.log(f"Successfully uploaded to {url}")
             
+            # Return some basic info about the uploaded file
             return {
                 'url': url,
                 'bucket': bucket,
@@ -108,6 +109,7 @@ class CDNUploader:
                 'isPublic': self.config.get('isPublic', False)
             }
         
+        # Log any errors that occur during upload
         except Exception as e:
             if stream_logger:
                 stream_logger.log(f"CDN upload error: {str(e)}", level="error")

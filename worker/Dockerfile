@@ -6,9 +6,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
-COPY streams.py .
-COPY cdn.py .
+COPY worker.py .
+COPY libs/ ./libs/
 COPY entrypoint.sh .
 
 RUN chmod +x entrypoint.sh
