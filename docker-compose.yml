@@ -20,6 +20,7 @@ services:
       - .env
     volumes:
       - ./builds:/builds
+      - steam_config:/root/Steam
   valkey:
     image: valkey/valkey:latest
     ports:
@@ -28,3 +29,4 @@ services:
       - valkey_data:/data
 volumes:
   valkey_data:
+  steam_config:

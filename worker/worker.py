@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from libs.streams import LogStream
 from libs.cdn import CDNUploader
 from libs.zip import zip_build
+from libs.steam import SteamUploader, SteamVDFBuilder
 
 # ===============================================================
 # Conection & Queue Setup
@@ -90,6 +91,52 @@ def get_zipped_file_path(job: Dict[str, Any], stream: LogStream) -> str:
         raise 
     return file_path
 
+def handle_steam_upload(job: Dict[str, Any], file_path: str, stream: LogStream) -> Dict[str, Any]:
+    """Handle Steam build upload.
+    
+    Args:
+        job: The job dictionary containing steam_build configuration
+        file_path: Path to the build file/directory
+        stream: LogStream instance for logging progress
+    
+    Returns:
+        dict with upload results
+    
+    Raises:
+        Exception: If Steam upload fails
+    """
+    steam_build: Dict[str, Any] = job.get("steam_build", {})
+    
+    if not steam_build:
+        stream.log("No Steam build configuration provided", level="warning")
+        return {"success": False, "message": "No Steam build config"}
+    
+    try:
+        app_id: str = steam_build.get("app_id")
+        depots: list = steam_build.get("depots", [])
+        branch: Optional[str] = steam_build.get("branch")
+        description: Optional[str] = steam_build.get("description")
+        
+        if not app_id or not depots:
+            raise ValueError("steam_build must include 'app_id' and 'depots'")
+        
+        stream.log(f"Preparing Steam upload for app {app_id}...")
+        
+        # Generate VDF file
+        vdf_builder = SteamVDFBuilder(app_id, depots, stream)
+        vdf_path: str = vdf_builder.build_vdf(file_path, description, branch)
+        
+        # Upload to Steam
+        uploader = SteamUploader(stream)
+        result = uploader.upload_build(app_id, vdf_path, branch)
+        
+        job["steam_result"] = result
+        return result
+    
+    except Exception as e:
+        stream.log(f"Steam upload failed: {str(e)}", level="error")
+        raise
+
 # ===============================================================
 # Main Job Handling Function
 # ===============================================================
@@ -127,6 +174,14 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
             job["cdnUrl"] = result['url']
         except Exception as e:
             stream.log(f"CDN upload failed: {str(e)}", level="error")
+            raise
+    
+    # Handle Steam upload if specified and we have a file to upload
+    if job.get("steam_build") and isinstance(job.get("steam_build"), dict) and job.get("absoluteIngestPath"):
+        try:
+            handle_steam_upload(job, job.get("absoluteIngestPath"), stream)
+        except Exception as e:
+            stream.log(f"Steam upload failed: {str(e)}", level="error")
             raise
 
     # Simulate some processing time to test log streaming.

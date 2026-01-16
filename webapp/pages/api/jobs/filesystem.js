@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
 
   if (req.method === 'POST') {
-    const { project, services, platform, ingestPath, cdn_destination } = req.body || {};
+    const { project, services, platform, ingestPath, cdn_destination, steam_build } = req.body || {};
 
     const errors = [];
     if (!project || typeof project !== 'string' || project.trim().length < 1) {
@@ -41,6 +41,26 @@ export default async function handler(req, res) {
     }
     if (cdn_destination && typeof cdn_destination !== 'object') {
       errors.push('cdn_destination must be an object');
+    }
+    if (steam_build && typeof steam_build !== 'object') {
+      errors.push('steam_build must be an object');
+    }
+    if (steam_build) {
+      if (!steam_build.app_id) {
+        errors.push('steam_build.app_id is required');
+      }
+      if (!Array.isArray(steam_build.depots) || steam_build.depots.length === 0) {
+        errors.push('steam_build.depots must be a non-empty array');
+      }
+      if (steam_build.branch && typeof steam_build.branch !== 'string') {
+        errors.push('steam_build.branch must be a string');
+      }
+      if (steam_build.description && typeof steam_build.description !== 'string') {
+        errors.push('steam_build.description must be a string');
+      }
+    }
+    if (!cdn_destination && !steam_build) {
+      errors.push('at least one destination (cdn_destination or steam_build) must be provided');
     }
 
 
@@ -75,6 +95,7 @@ export default async function handler(req, res) {
       ingestPath,
       absoluteIngestPath,
       cdn_destination: cdn_destination || null,
+      steam_build: steam_build || null,
       metadata: {}
     };
 
