@@ -4,10 +4,12 @@ import sys
 import time
 import redis
 from typing import Optional, Dict, Any
+from datetime import datetime
 from libs.streams import LogStream
 from libs.cdn import CDNUploader
 from libs.zip import zip_build
 from libs.steam import SteamUploader, SteamVDFBuilder
+from libs.notifications import NotificationService
 
 # ===============================================================
 # Conection & Queue Setup
@@ -30,6 +32,9 @@ RUNNING_JOBS: str = "running_jobs"
 COMPLETE_JOBS: str = "complete_jobs"
 FAILED_JOBS: str = "failed_jobs"
 
+# Initialize notification service
+notification_service: NotificationService = NotificationService()
+
 # ===============================================================
 # Utility Functions
 # ===============================================================
@@ -49,6 +54,9 @@ def abbort_job(job: Dict[str, Any], stream: LogStream, error_message: str) -> No
     job["status"] = "failed"
     job["error"] = error_message
     kv_store.rpush(FAILED_JOBS, json.dumps(job))
+    
+    # Send notification about job failure
+    notification_service.send_job_notification(job, 'failed', error_message)
 
 
 def get_zipped_file_path(job: Dict[str, Any], stream: LogStream) -> str:
@@ -153,6 +161,7 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
     """
     # Update the job status to running and keep a clean copy of the 
     job["status"] = "running"
+    job["startedAt"] = datetime.utcnow().isoformat() + "Z"
     current_job: str = json.dumps(job)
 
     # Add the job to the running jobs list
@@ -183,17 +192,16 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
         except Exception as e:
             stream.log(f"Steam upload failed: {str(e)}", level="error")
             raise
-
-    # Simulate some processing time to test log streaming.
-    for i in range(100):
-        stream.log(f"{i}")
-        time.sleep(1)  # Simulate work being done
     
     # Remove job from running and add to complete marking it complete.
     kv_store.lrem(RUNNING_JOBS, 0, current_job)
     job["status"] = "complete"
+    job["completedAt"] = datetime.utcnow().isoformat() + "Z"
     kv_store.rpush(COMPLETE_JOBS, json.dumps(job))
     print("Processed job:", job.get("id"))
+    
+    # Send notification about successful completion
+    notification_service.send_job_notification(job, 'completed')
 
 # ===============================================================
 # Main worker loop
