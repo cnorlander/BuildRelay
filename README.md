@@ -5,19 +5,36 @@ Planned Features:
 - [X] Python workers for handling CLI based build distribution.
 - [X] Realtime logs for distribution.
 - [ ] Publish builds directly from the filesystem by triggering via frontend or REST API.
-- [ ] Publish builds by providing a URL to a zipped build.
+- [X] Publish builds by providing a URL to a zipped build.
 - [ ] Publish builds by webhook from Unity DevOps.
 - [X] Publish to any S3 compatible bucket or CDN.
 - [X] Publish builds to Steam via SteamPipe.
 - [ ] Publish builds to Meta.
 - [ ] Publish builds to Google Drive.
-- [ ] Send new build notifications via Slack or Discord.
+- [X] Send new build notifications via Slack or Discord.
+
+## Setup
+
+1. Clone this repo.
+2. Ensure Docker is installed on the machine you plan to deploy this on.
+3. Copy the ```.env-example``` file and rename to ```.env```
+4. Fill out the ```.env``` file. 
+5. Run ```docker compose up```
+6. Configure Steam Auth if you plan to push builds to steam. (Instructions below)
+7. Login using the default credentials
+8. Configure your channels for anywhere you might want to upload your builds to.
+
+## Note for Production Use
+
+- You likely want to set this up behind an NGINX proxy w/ SSL. I will probably include a config for one at some point in this project. 
+- You likely want to change all the default passwords and setup SSL for Valkey.
+- You likely want to run the webapp server not in dev mode.
 
 ## Steam Integration
 
-BuildRelay now supports uploading builds to Steam using SteamPipe. This feature automatically generates VDF configuration files and can upload and set your build live on a beta branch if you wish.
+BuildRelay now supports uploading builds to Steam using SteamPipe. This feature automatically generates VDF configuration files and can upload and set your build live on a branch if you wish. If you wish to use this feature you will need to complete the steam authentication setup below
 
-### Steam Setup
+### Steam Auth Setup
 
 **Step 1: Start the containers**
 ```bash
