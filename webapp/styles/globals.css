@@ -86,3 +86,198 @@ h1{ margin-top:0; }
   opacity:0.6;
   cursor:not-allowed;
 }
+
+/* ========================================================================
+   Channel Management Styles
+   ======================================================================== */
+
+.error-message {
+  color: #dc2626;
+  margin-bottom: 1rem;
+  padding: 8px;
+  background-color: #fee;
+  border-radius: 4px;
+  border: 1px solid #fca5a5;
+}
+
+.action-button {
+  margin-bottom: 1rem;
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.action-button:hover {
+  background: #1d4ed8;
+}
+
+.channel-form {
+  max-width: 600px;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.channel-form label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.channel-form input {
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.depot-section {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.depot-section-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.depot-item {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.depot-inputs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.depot-input {
+  flex: 1;
+}
+
+.remove-button {
+  padding: 4px 8px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.remove-button:hover {
+  background: #b91c1c;
+}
+
+.add-depot-button {
+  padding: 4px 8px;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-depot-button:hover {
+  background: #047857;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.submit-button {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.submit-button:hover {
+  background: #1d4ed8;
+}
+
+.cancel-button {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.cancel-button:hover {
+  background: #f5f5f5;
+}
+
+.channels-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.channels-table thead tr {
+  border-bottom: 1px solid #e6e9ee;
+}
+
+.channels-table th {
+  text-align: left;
+  padding: 8px;
+  font-weight: 600;
+  background-color: #f9fafb;
+}
+
+.channels-table tbody tr {
+  border-bottom: 1px solid #e6e9ee;
+}
+
+.channels-table td {
+  padding: 8px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.edit-button {
+  padding: 4px 8px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.edit-button:hover {
+  background: #f5f5f5;
+}
+
+.delete-button {
+  padding: 4px 8px;
+  background: #dc2626;
+  color: #fff;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+}
+
+.delete-button:hover {
+  background: #b91c1c;
+}

@@ -17,9 +17,12 @@ from libs.notifications import NotificationService
 
 try:
     # Connect to Valkey
+    use_ssl = os.environ.get("VALKEY_USE_SSL", "false").lower() == "true"
     kv_store: redis.Redis = redis.Redis(
         host=os.environ.get("VALKEY_HOST", "valkey"),
         port=int(os.environ.get("VALKEY_PORT", 6379)),
+        password=os.environ.get("VALKEY_PASSWORD", "change_in_production"),
+        ssl=use_ssl,
         decode_responses=True, 
     )
 except Exception as e:

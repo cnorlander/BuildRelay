@@ -3,26 +3,46 @@ import { validateApiKey } from '@lib/auth';
 import { stat } from "fs/promises";
 
 const env = require('@lib/env');
-const clientPromise = require('@lib/valkey'); // Import Valkey GLIDE client promise
+const clientPromise = require('@lib/valkey');
 const { randomUUID } = require('crypto');
 
+// ============================================================================
+// FILESYSTEM JOBS API ROUTE
+// ============================================================================
+// Handles job submission for filesystem-based builds
+// Accepts CDN and/or Steam channel configurations for build processing
+// Validates all input parameters and persists jobs to Valkey queue
+//
+// Supported Methods:
+//   - POST: Submit a new build job with CDN/Steam upload destinations
+// ============================================================================
+
 function requireApiKey(req) {
+  // Extract API key from request headers
   const apiKey = req.headers['x-api-key'];
   return apiKey && validateApiKey(apiKey);
 }
 
 export default async function handler(req, res) {
-  // Require API key for all requests
+  // ========================================================================
+  // Authentication & Initialization
+  // ========================================================================
+  
+  // Require API key for all requests (stricter than JWT)
   if (!requireApiKey(req)) {
     return res.status(401).json({ error: 'API key required' });
   }
 
-  const client = await clientPromise; // Await the client
+  const client = await clientPromise;
 
-
+  // ========================================================================
+  // POST - Submit a new job
+  // ========================================================================
   if (req.method === 'POST') {
+    // Extract job submission parameters from request body
     const { project, services, platform, ingestPath, cdn_destination, steam_build } = req.body || {};
 
+    // Input Validation
     const errors = [];
     if (!project || typeof project !== 'string' || project.trim().length < 1) {
       errors.push('project must be a non-empty string');
@@ -60,10 +80,10 @@ export default async function handler(req, res) {
       }
     }
     if (!cdn_destination && !steam_build) {
-      errors.push('at least one destination (cdn_destination or steam_build) must be provided');
+      errors.push('at least one channel (cdn_destination or steam_build) must be provided');
     }
 
-
+    // Verify ingest directory exists
     const absoluteIngestPath = env.BUILD_INGEST_PATH + '/' +ingestPath.trim();
     console.log('absoluteIngestPath:', absoluteIngestPath);
     if (ingestPath) {
@@ -77,11 +97,12 @@ export default async function handler(req, res) {
         }
     }
 
-
+    // Return validation errors if any exist
     if (errors.length) {
       return res.status(400).json({ errors });
     }
 
+    // Create Job Object
     const newJob = {
       id: randomUUID(),
       source: "filesystem",
@@ -100,6 +121,7 @@ export default async function handler(req, res) {
     };
 
     try {
+      // Persist job to Valkey queue
       await client.lpush('queued_jobs', JSON.stringify(newJob));
       return res.status(201).json({ job: newJob });
     } catch (err) {
@@ -108,6 +130,9 @@ export default async function handler(req, res) {
     }
   }
 
+  // ========================================================================
+  // Method Not Allowed
+  // ========================================================================
   res.setHeader('Allow', ['POST'])
   res.status(405).end(`Method ${req.method} Not Allowed`)
 }

@@ -1,34 +1,50 @@
 import { validateAuth } from '@lib/auth';
 import { ensureInitialized } from '@lib/init';
-const clientPromise = require('@lib/valkey'); // Import Valkey GLIDE client promise
+const clientPromise = require('@lib/valkey');
 const { randomUUID } = require('crypto');
 
+// ============================================================================
+// JOBS API ROUTE
+// ============================================================================
+// Handles job queue management and retrieval
+// Retrieves jobs from three Valkey lists: queued, running, and complete
+// Returns aggregated job status across all phases
+//
+// Supported Methods:
+//   - GET: Retrieve all jobs organized by status (queued, running, complete)
+//   - POST: Create a new job with project, services, and platform metadata
+// ============================================================================
+
 export default async function handler(req, res) {
-
-
-  // Validate either API key or JWT
+  // ========================================================================
+  // Authentication & Initialization
+  // ========================================================================
+  
+  // Validate caller has either valid API key or JWT token
   if (!validateAuth(req)) {
     return res.status(401).json({ error: 'Invalid or missing authentication' });
   }
 
-  const client = await clientPromise; // Await the client
+  const client = await clientPromise;
 
+  // ========================================================================
+  // GET - Retrieve all jobs by status
+  // ========================================================================
   if (req.method === 'GET') {
     try {
-
-      // Fetch jobs from Valkey lists
+      // Fetch jobs from all three status lists in parallel
       const [queuedJobsString, runningJobsString, completeJobsString] = await Promise.all([
         client.lrange('queued_jobs', 0, -1),
         client.lrange('running_jobs', 0, -1),
         client.lrange('complete_jobs', 0, -1),
       ]);
 
-      // Parse job strings into objects
+      // Parse JSON strings back to objects
       const queuedJobs = queuedJobsString.map(queuedJobsString => JSON.parse(queuedJobsString));
       const runningJobs = runningJobsString.map(runningJobsString => JSON.parse(runningJobsString));
       const completeJobs = completeJobsString.map(completeJobsString => JSON.parse(completeJobsString));
 
-      // Format them into a single response object
+      // Aggregate into single response object organized by status
       const jobs = {queuedJobs: queuedJobs, runningJobs: runningJobs, completeJobs: completeJobs};
       return res.status(200).json({ jobs });
     } catch (err) {
@@ -37,9 +53,14 @@ export default async function handler(req, res) {
     }
   }
 
+  // ========================================================================
+  // POST - Create a new job
+  // ========================================================================
   if (req.method === 'POST') {
+    // Extract job metadata from request body
     const { project, services, platform } = req.body || {};
 
+    // Input Validation
     const errors = [];
     if (!project || typeof project !== 'string' || project.trim().length < 1) {
       errors.push('project must be a non-empty string');
@@ -55,6 +76,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ errors });
     }
 
+    // Create Job Object
     const newJob = {
       id: randomUUID(),
       project: project.trim(),
@@ -68,6 +90,7 @@ export default async function handler(req, res) {
     };
 
     try {
+      // Persist job to Valkey queue (LPUSH adds to head of list)
       await client.lpush('queued_jobs', JSON.stringify(newJob));
       return res.status(201).json({ job: newJob });
     } catch (err) {
@@ -76,6 +99,9 @@ export default async function handler(req, res) {
     }
   }
 
+  // ========================================================================
+  // Method Not Allowed
+  // ========================================================================
   res.setHeader('Allow', ['GET', 'POST'])
   res.status(405).end(`Method ${req.method} Not Allowed`)
 }

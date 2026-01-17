@@ -25,6 +25,7 @@ services:
     image: valkey/valkey:latest
     ports:
       - "6379:6379"
+    command: valkey-server --requirepass ${VALKEY_PASSWORD:-change_in_production}
     volumes:
       - valkey_data:/data
 volumes:

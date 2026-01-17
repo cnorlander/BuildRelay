@@ -5,20 +5,39 @@ const clientPromise = require('@lib/valkey');
 const { randomUUID } = require('crypto');
 const env = require('@lib/env');
 
-export default async function handler(req, res) {
+// ============================================================================
+// BUILDS API ROUTE
+// ============================================================================
+// Handles retrieval of build artifacts from the filesystem
+// Lists all builds in the ingest directory with metadata (size, timestamps)
+// Returns sorted list by creation time (newest first)
+//
+// Supported Methods:
+//   - GET: List all available builds with metadata
+// ============================================================================
 
-  // Validate either API key or JWT
+export default async function handler(req, res) {
+  // ========================================================================
+  // Authentication & Initialization
+  // ========================================================================
+  
+  // Validate caller has either valid API key or JWT token
   if (!validateAuth(req)) {
     return res.status(401).json({ error: 'Invalid or missing authentication' });
   }
 
   const client = await clientPromise;
 
+  // ========================================================================
+  // GET - List all builds
+  // ========================================================================
   if (req.method === 'GET') {
     try {
+      // Retrieve all files from build ingest directory
       const buildPath = env.BUILD_INGEST_PATH;
       const files = await readdir(buildPath);
 
+      // Collect metadata for each file
       const fileStats = await Promise.all(
         files.map(async (file) => {
           const filePath = `${buildPath}/${file}`;
@@ -33,7 +52,7 @@ export default async function handler(req, res) {
         })
       );
 
-      // Sort by creation time, newest first
+      // Sort by creation time (newest first)
       fileStats.sort((a, b) => b.createdAt - a.createdAt);
 
       return res.status(200).json({ builds: fileStats });
@@ -43,6 +62,9 @@ export default async function handler(req, res) {
     }
   }
 
+  // ========================================================================
+  // Method Not Allowed
+  // ========================================================================
   res.setHeader('Allow', ['GET'])
   res.status(405).end(`Method ${req.method} Not Allowed`)
 }
