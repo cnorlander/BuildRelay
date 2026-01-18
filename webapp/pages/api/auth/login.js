@@ -41,10 +41,16 @@ export default async function handler(req, res) {
 
     // Generate JWT token with user identity
     const token = generateJWT(username);
+    
     // Set HTTP-only cookie to prevent XSS attacks (24 hour expiration)
     res.setHeader('Set-Cookie', `jwt=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
     return res.status(200).json({ success: true, message: 'Logged in successfully' });
-  } catch (err) {
+  } 
+  
+  // ========================================================================
+  // Error Handling
+  // ========================================================================
+  catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Login failed' });
   }

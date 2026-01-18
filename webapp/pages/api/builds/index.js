@@ -1,5 +1,4 @@
 import { validateAuth } from '@lib/auth';
-import { ensureInitialized } from '@lib/init';
 import { readdir, stat } from 'fs/promises';
 const clientPromise = require('@lib/valkey');
 const { randomUUID } = require('crypto');
@@ -29,7 +28,7 @@ export default async function handler(req, res) {
   const client = await clientPromise;
 
   // ========================================================================
-  // GET - List all builds
+  // GET - List all builds from the filesystem
   // ========================================================================
   if (req.method === 'GET') {
     try {
@@ -37,9 +36,12 @@ export default async function handler(req, res) {
       const buildPath = env.BUILD_INGEST_PATH;
       const files = await readdir(buildPath);
 
+      // Filter out hidden files/folders (starting with .)
+      const visibleFiles = files.filter(file => !file.startsWith('.'));
+
       // Collect metadata for each file
       const fileStats = await Promise.all(
-        files.map(async (file) => {
+        visibleFiles.map(async (file) => {
           const filePath = `${buildPath}/${file}`;
           const stats = await stat(filePath);
           return {

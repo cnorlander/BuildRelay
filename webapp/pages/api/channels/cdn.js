@@ -1,5 +1,4 @@
 import { validateAuth } from '@lib/auth';
-import { ensureInitialized } from '@lib/init';
 const clientPromise = require('@lib/valkey');
 const { randomUUID } = require('crypto');
 

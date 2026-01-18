@@ -1,5 +1,5 @@
 import { error } from 'console';
-import { validateApiKey } from '@lib/auth';
+import { validateApiKey, validateAuth } from '@lib/auth';
 import { stat } from "fs/promises";
 
 const env = require('@lib/env');
@@ -17,20 +17,17 @@ const { randomUUID } = require('crypto');
 //   - POST: Submit a new build job with CDN/Steam upload destinations
 // ============================================================================
 
-function requireApiKey(req) {
-  // Extract API key from request headers
-  const apiKey = req.headers['x-api-key'];
-  return apiKey && validateApiKey(apiKey);
-}
-
 export default async function handler(req, res) {
   // ========================================================================
   // Authentication & Initialization
   // ========================================================================
   
-  // Require API key for all requests (stricter than JWT)
-  if (!requireApiKey(req)) {
-    return res.status(401).json({ error: 'API key required' });
+  // Require API key or valid JWT session
+  const isValidApiKey = validateApiKey(req.headers['x-api-key']);
+  const isValidJwt = validateAuth(req);
+  
+  if (!isValidApiKey && !isValidJwt) {
+    return res.status(401).json({ error: 'Invalid or missing authentication' });
   }
 
   const client = await clientPromise;
@@ -56,8 +53,16 @@ export default async function handler(req, res) {
     if (!ingestPath || typeof ingestPath !== 'string' || ingestPath.trim().length < 1) {
       errors.push('ingestPath must be a non-empty string');
     }
-    if (ingestPath && (ingestPath.includes('..') || ingestPath.startsWith('/'))) {
-      errors.push('security error: ingestPath cannot be absolute or contain ".."');
+    // Enhanced path traversal protection
+    if (ingestPath) {
+      const trimmedPath = ingestPath.trim();
+      if (trimmedPath.includes('..') || trimmedPath.startsWith('/') || trimmedPath.includes('\0') || trimmedPath.includes('~')) {
+        errors.push('security error: ingestPath contains invalid characters');
+      }
+      // Ensure path only contains alphanumeric, hyphens, underscores, and forward slashes
+      if (!/^[a-zA-Z0-9._\-/]+$/.test(trimmedPath)) {
+        errors.push('security error: ingestPath contains invalid characters');
+      }
     }
     if (!Array.isArray(steam_channel_labels)) {
       errors.push('steam_channel_labels must be an array');
@@ -73,7 +78,6 @@ export default async function handler(req, res) {
 
     // Verify ingest directory exists
     const absoluteIngestPath = env.BUILD_INGEST_PATH + '/' +ingestPath.trim();
-    console.log('absoluteIngestPath:', absoluteIngestPath);
     if (ingestPath) {
         try {
             const ingestPathStat = await stat(absoluteIngestPath);

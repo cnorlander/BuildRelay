@@ -87,6 +87,6 @@ export default async function handler(req, res) {
   // ========================================================================
   catch (err) {
     console.error('Stream history error:', err);
-    res.status(500).json({ error: 'Failed to fetch stream history: ' + err.message });
+    res.status(500).json({ error: 'Failed to fetch stream history' });
   }
 }

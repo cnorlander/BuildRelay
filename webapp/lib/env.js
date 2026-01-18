@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+// Load environment variables with defaults where applicable
 const env = {
   VALKEY_HOST: process.env.VALKEY_HOST || 'localhost',
   VALKEY_PORT: process.env.VALKEY_PORT || 6379,

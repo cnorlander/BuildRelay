@@ -8,6 +8,8 @@ services:
       - valkey
     env_file:
       - .env
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
     volumes:
       - ./builds:/builds
   workers:

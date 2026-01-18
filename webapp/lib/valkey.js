@@ -1,6 +1,7 @@
 const { GlideClient } = require('@valkey/valkey-glide');
 const env = require('./env');
 
+// Configure Valkey server addresses
 const addresses = [
     {
         host: env.VALKEY_HOST,
@@ -8,8 +9,10 @@ const addresses = [
     },
 ];
 
+// Determine if SSL should be used based on environment variable
 const useSsl = (env.VALKEY_USE_SSL || 'false').toLowerCase() === 'true';
 
+// Create Valkey Glide client for general use
 const clientPromise = GlideClient.createClient({
     addresses: addresses,
     credentials: {
