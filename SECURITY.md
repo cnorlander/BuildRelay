@@ -99,41 +99,12 @@ Before deploying to production, you MUST update these environment variables in `
 - Job processing errors (without sensitive details)
 - Stream errors and reconnections
 
-### Recommendations
-- Centralize logs to secure logging service
-- Monitor for suspicious patterns
-- Set up alerts for authentication failures
-
 ## Deployment Checklist
 
 - [ ] All environment variables set to production values
 - [ ] `.env` not committed to version control
 - [ ] HTTPS/TLS configured
 - [ ] Valkey running with authentication
-- [ ] Database and build directories have restricted permissions
-- [ ] Firewall rules restrict access appropriately
-- [ ] Regular security updates applied to dependencies
-- [ ] Monitoring and logging configured
-- [ ] Backup strategy in place
-
-## Regular Maintenance
-
-### Dependencies
-```bash
-npm audit
-npm update
-```
-
-### Secrets Rotation
-- Rotate API_KEY and JWT_SECRET regularly (quarterly recommended)
-- Rotate Valkey password (quarterly recommended)
-- Rotate default user credentials after initial login
-
-### Monitoring
-- Check for failed authentication attempts
-- Monitor resource usage and performance
-- Verify backups are working correctly
-- Test disaster recovery procedures
 
 ## Security Reporting
 

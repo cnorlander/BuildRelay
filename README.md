@@ -2,11 +2,11 @@
 
 Service for distributing builds across multiple platforms and services.
 
-```
+## Work In Progress
 USE AT YOUR OWN RISK: This app is a work in progress. Though there are production settings and instructions in this document several features and security measures are not yet implimented. Future updates to this repo are not garunteed to be 100% backwards compatible as of yet so please do not rely on this application yet if you are looking for seemless updates. 
-```
 
-Planned Features:
+
+## Planned Features
 - [X] Next JS frontend for monitoring build status and kicking builds.
 - [X] Python workers for handling CLI based build distribution.
 - [X] Realtime logs for distribution.
