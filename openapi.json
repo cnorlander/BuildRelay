@@ -1,0 +1,285 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BuildRelay API",
+    "description": "REST API for submitting build jobs to be distributed across multiple platforms and services",
+    "version": "1.0.0",
+    "contact": {
+      "name": "BuildRelay Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key for authentication"
+      }
+    },
+    "schemas": {
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique job identifier"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["filesystem"],
+            "description": "Job source type"
+          },
+          "project": {
+            "type": "string",
+            "description": "Project name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Build description"
+          },
+          "platform": {
+            "type": "string",
+            "description": "Target platform (e.g., windows, linux, macos)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Queued", "running", "complete", "failed"],
+            "description": "Current job status"
+          },
+          "buildStep": {
+            "type": "string",
+            "description": "Current build processing step"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when job was created"
+          },
+          "ingestPath": {
+            "type": "string",
+            "description": "Relative path to build files within /builds directory"
+          },
+          "steam_channel_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steam channels to upload to"
+          },
+          "cdn_channel_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "CDN channels to upload to"
+          }
+        },
+        "required": ["id", "source", "project", "platform", "status", "buildStep", "createdAt", "ingestPath"]
+      },
+      "JobResponse": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          }
+        },
+        "required": ["job"]
+      },
+      "FilesystemJobRequest": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "description": "Name of the project being built",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Description of the build (e.g., version number)"
+          },
+          "platform": {
+            "type": "string",
+            "description": "Target platform (e.g., windows, linux, macos)",
+            "minLength": 1
+          },
+          "ingestPath": {
+            "type": "string",
+            "description": "Relative path within /builds directory containing build files. Cannot be absolute or contain '..'",
+            "minLength": 1
+          },
+          "steam_channel_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels of Steam channels to upload to"
+          },
+          "cdn_channel_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels of CDN channels to upload to"
+          }
+        },
+        "required": ["project", "platform", "ingestPath"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of validation error messages"
+          }
+        }
+      },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "API key required"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/api/jobs/filesystem": {
+      "post": {
+        "summary": "Submit a filesystem-based build job",
+        "description": "Submit a build job from files on the filesystem to be uploaded to configured channels",
+        "operationId": "submitFilesystemJob",
+        "tags": ["Jobs"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilesystemJobRequest"
+              },
+              "examples": {
+                "basic": {
+                  "summary": "Basic example",
+                  "value": {
+                    "project": "Test Project",
+                    "platform": "windows",
+                    "ingestPath": "build",
+                    "cdn_channel_labels": ["CDN Label"]
+                  }
+                },
+                "full": {
+                  "summary": "Full example with all fields",
+                  "value": {
+                    "project": "Test Project",
+                    "description": "V0.0.1 Beta",
+                    "platform": "windows",
+                    "ingestPath": "build",
+                    "steam_channel_labels": ["Steam Label"],
+                    "cdn_channel_labels": ["CDN Label"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                },
+                "example": {
+                  "job": {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "source": "filesystem",
+                    "project": "Test Project",
+                    "description": "V0.0.1 Beta",
+                    "platform": "windows",
+                    "status": "Queued",
+                    "buildStep": "Waiting for worker assignment.",
+                    "createdAt": "2026-01-18T10:30:00.000Z",
+                    "ingestPath": "build",
+                    "steam_channel_labels": ["Steam Label"],
+                    "cdn_channel_labels": ["CDN Label"]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error - invalid input or channel labels not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "errors": [
+                    "steam channel with label \"Invalid Label\" not found",
+                    "ingestPath must be a non-empty string"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed - only POST is supported"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Failed to create job"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Jobs",
+      "description": "Build job submission and management"
+    }
+  ]
+}

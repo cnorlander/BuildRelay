@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from libs.streams import LogStream
 from libs.cdn import CDNUploader
-from libs.zip import zip_build
+from libs.zip import zip_build, unzip_build
 from libs.steam import SteamUploader, SteamVDFBuilder
 from libs.notifications import NotificationService
 
@@ -62,87 +62,125 @@ def abbort_job(job: Dict[str, Any], stream: LogStream, error_message: str) -> No
     notification_service.send_job_notification(job, 'failed', error_message)
 
 
-def get_zipped_file_path(job: Dict[str, Any], stream: LogStream) -> str:
-    """Handle file zipping for job ingestion.
+def get_cdn_file_path(job: Dict[str, Any], stream: LogStream) -> str:
+    """Prepare build file for CDN upload (zip if directory).
     
     Args:
         job: The job dictionary containing ingest path information
-        file_path: Path to the file (unused, file path is determined from job)
         stream: LogStream instance for logging progress
     
     Returns:
-        Path to the processed file or zip archive
+        Path to the file or zip archive for CDN upload
     
     Raises:
         Exception: If the path does not exist or zip creation fails
     """
-    file_path: Optional[str] = None
-    # Get the absolute (container internal) path
     absolute_build_path: Optional[str] = job.get("absoluteIngestPath")
-    stream.log(f"Ingesting build from filesystem path {job['ingestPath']}...")
+    stream.log(f"Preparing build for CDN upload from {job['ingestPath']}...")
 
-    # Check if the path is a file or directory
-    if absolute_build_path and os.path.exists(absolute_build_path):
-        if os.path.isfile(absolute_build_path):
-            # It's a file, we can just upload it directly
-            stream.log(f"Found file: {absolute_build_path}")
-            # Set the file path for later upload
-            file_path = absolute_build_path
-        elif os.path.isdir(absolute_build_path):
-            # It's a directory, we need to zip it first
-            stream.log(f"Found directory: {absolute_build_path}, creating zip archive...")
-            # Zip the file and set the file path for later upload
-            try:
-                file_path = zip_build(job["id"], absolute_build_path, stream)
-            except Exception as e:
-                stream.log(f"Error creating zip: {str(e)}", level="error")
-                raise
-    else:
+    if not absolute_build_path or not os.path.exists(absolute_build_path):
         stream.log(f"Path does not exist: {absolute_build_path}", level="error")
-        raise 
-    return file_path
+        raise Exception(f"Build path does not exist: {absolute_build_path}")
+    
+    if os.path.isfile(absolute_build_path):
+        stream.log(f"Found file: {absolute_build_path}")
+        return absolute_build_path
+    elif os.path.isdir(absolute_build_path):
+        stream.log(f"Found directory: {absolute_build_path}, creating zip archive...")
+        try:
+            return zip_build(job["id"], absolute_build_path, stream)
+        except Exception as e:
+            stream.log(f"Error creating zip: {str(e)}", level="error")
+            raise
+    else:
+        raise Exception(f"Invalid path: {absolute_build_path}")
 
-def handle_steam_upload(job: Dict[str, Any], file_path: str, stream: LogStream) -> Dict[str, Any]:
-    """Handle Steam build upload.
+
+def get_steam_build_path(job: Dict[str, Any], stream: LogStream) -> str:
+    """Prepare build directory for Steam upload (unzip if needed).
     
     Args:
-        job: The job dictionary containing steam_build configuration
+        job: The job dictionary containing ingest path information
+        stream: LogStream instance for logging progress
+    
+    Returns:
+        Path to the directory containing the build for Steam upload
+    
+    Raises:
+        Exception: If the path does not exist or unzip fails
+    """
+    absolute_build_path: Optional[str] = job.get("absoluteIngestPath")
+    stream.log(f"Preparing build for Steam upload from {job['ingestPath']}...")
+
+    if not absolute_build_path or not os.path.exists(absolute_build_path):
+        stream.log(f"Path does not exist: {absolute_build_path}", level="error")
+        raise Exception(f"Build path does not exist: {absolute_build_path}")
+    
+    if os.path.isdir(absolute_build_path):
+        # Already a directory, return it as-is
+        stream.log(f"Found directory: {absolute_build_path}")
+        return absolute_build_path
+    elif os.path.isfile(absolute_build_path):
+        # Check if it's a zip file
+        if absolute_build_path.lower().endswith('.zip'):
+            stream.log(f"Found zip file: {absolute_build_path}, extracting to temp directory...")
+            return unzip_build(absolute_build_path, job['id'], stream)
+        else:
+            # Single file, use parent directory as build path
+            stream.log(f"Found single file (not zip): {absolute_build_path}, using parent directory")
+            return os.path.dirname(absolute_build_path)
+    else:
+        raise Exception(f"Invalid path: {absolute_build_path}")
+
+
+def handle_steam_upload(job: Dict[str, Any], file_path: str, stream: LogStream) -> Dict[str, Any]:
+    """Handle Steam build uploads for all configured Steam channels.
+    
+    Args:
+        job: The job dictionary containing steam_channels array
         file_path: Path to the build file/directory
         stream: LogStream instance for logging progress
     
     Returns:
-        dict with upload results
+        dict with upload results for each channel
     
     Raises:
-        Exception: If Steam upload fails
+        Exception: If any Steam upload fails
     """
-    steam_build: Dict[str, Any] = job.get("steam_build", {})
+    steam_channels: list = job.get("steam_channels", [])
     
-    if not steam_build:
-        stream.log("No Steam build configuration provided", level="warning")
-        return {"success": False, "message": "No Steam build config"}
+    if not steam_channels:
+        stream.log("No Steam channels configured for this job", level="warning")
+        return {"success": False, "message": "No Steam channels configured"}
+    
+    results = []
     
     try:
-        app_id: str = steam_build.get("app_id")
-        depots: list = steam_build.get("depots", [])
-        branch: Optional[str] = steam_build.get("branch")
-        description: Optional[str] = steam_build.get("description")
+        for channel in steam_channels:
+            stream.log(f"Preparing Steam upload to channel '{channel.get('label')}' for app {channel.get('appId')}...")
+            
+            app_id: str = channel.get("appId")
+            depots: list = channel.get("depots", [])
+            branch: Optional[str] = channel.get("branch")
+            
+            if not app_id or not depots:
+                raise ValueError(f"Steam channel '{channel.get('label')}' must include 'appId' and 'depots'")
+            
+            # Generate VDF file
+            vdf_builder = SteamVDFBuilder(app_id, depots, stream)
+            vdf_path: str = vdf_builder.build_vdf(file_path, job.get("description"), branch)
+            
+            # Upload to Steam
+            uploader = SteamUploader(stream)
+            result = uploader.upload_build(app_id, vdf_path, branch)
+            results.append({
+                "channel": channel.get("label"),
+                "app_id": app_id,
+                "result": result
+            })
         
-        if not app_id or not depots:
-            raise ValueError("steam_build must include 'app_id' and 'depots'")
-        
-        stream.log(f"Preparing Steam upload for app {app_id}...")
-        
-        # Generate VDF file
-        vdf_builder = SteamVDFBuilder(app_id, depots, stream)
-        vdf_path: str = vdf_builder.build_vdf(file_path, description, branch)
-        
-        # Upload to Steam
-        uploader = SteamUploader(stream)
-        result = uploader.upload_build(app_id, vdf_path, branch)
-        
-        job["steam_result"] = result
-        return result
+        job["steam_results"] = results
+        return {"success": True, "channels_uploaded": len(results)}
     
     except Exception as e:
         stream.log(f"Steam upload failed: {str(e)}", level="error")
@@ -169,29 +207,44 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
 
     # Add the job to the running jobs list
     kv_store.rpush(RUNNING_JOBS, current_job)
-        
-    # Handle CDN upload if specified and we have a file to upload
-    if job.get("cdn_destination") and isinstance(job.get("cdn_destination"), dict):
-        # Make sure the build in question exists in the local filesystem
-        # If so we should probably zip it up if it's a directory for CDN upload
-        file_path: Optional[str] = None
-        if job.get("ingestPath") and job.get("absoluteIngestPath"):
-            file_path = get_zipped_file_path(job, stream)
-
-        # Upload the file to the CDN
+    
+    # Initialize results tracking
+    job["upload_results"] = {
+        "cdn": [],
+        "steam": []
+    }
+    
+    # Handle CDN uploads for all configured CDN channels
+    cdn_channels: list = job.get("cdn_channels", [])
+    if cdn_channels and job.get("ingestPath") and job.get("absoluteIngestPath"):
         try:
-            stream.log(f"Uploading to CDN...")
-            uploader = CDNUploader(job['cdn_destination'])
-            result = uploader.upload_file(file_path, stream)
-            job["cdnUrl"] = result['url']
+            cdn_file_path = get_cdn_file_path(job, stream)
+            for channel in cdn_channels:
+                stream.log(f"Uploading to CDN channel '{channel.get('label')}'...")
+                uploader = CDNUploader(channel)
+                result = uploader.upload_file(cdn_file_path, stream)
+                job["upload_results"]["cdn"].append({
+                    "channel": channel.get("label"),
+                    "url": result.get("url"),
+                    "success": True
+                })
         except Exception as e:
             stream.log(f"CDN upload failed: {str(e)}", level="error")
             raise
     
-    # Handle Steam upload if specified and we have a file to upload
-    if job.get("steam_build") and isinstance(job.get("steam_build"), dict) and job.get("absoluteIngestPath"):
+    # Handle Steam uploads for all configured Steam channels
+    steam_channels: list = job.get("steam_channels", [])
+    if steam_channels and job.get("ingestPath") and job.get("absoluteIngestPath"):
         try:
-            handle_steam_upload(job, job.get("absoluteIngestPath"), stream)
+            steam_build_path = get_steam_build_path(job, stream)
+            handle_steam_upload(job, steam_build_path, stream)
+            # Add Steam results to tracking
+            for result in job.get("steam_results", []):
+                job["upload_results"]["steam"].append({
+                    "channel": result.get("channel"),
+                    "app_id": result.get("app_id"),
+                    "success": True
+                })
         except Exception as e:
             stream.log(f"Steam upload failed: {str(e)}", level="error")
             raise

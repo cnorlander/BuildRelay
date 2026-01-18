@@ -59,4 +59,3 @@ exit
 ```
 
 Your login is now cached and will persist across container restarts. You only need to do this once!
-
