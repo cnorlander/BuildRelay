@@ -69,11 +69,11 @@ export default function Home({ initialJobs, initialError }) {
       <h1>Distribution Dashboard</h1>
       
       {/* Header: Last updated timestamp and Create Job button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="page-header">
         {/* Last updated display */}
         <div>
           {lastUpdated && (
-            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+            <p className="header-subtitle">
               Last updated: {lastUpdated.toLocaleTimeString()}
             </p>
           )}
@@ -96,7 +96,7 @@ export default function Home({ initialJobs, initialError }) {
           onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
           onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
         >
-          <i className="fas fa-plus" style={{ marginRight: '8px' }} />
+          <i className="fas fa-plus btn-icon-spacing" />
           Create Job
         </button>
       </div>

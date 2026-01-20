@@ -190,12 +190,7 @@ export default function CDNChannels() {
           {/* Basic channel metadata fields */}
           <label>
             Label
-            <input
-              type="text"
-              name="label"
-              value={formData.label}
-              onChange={handleInputChange}
-              required
+            <input type="text" name="label" value={formData.label} onChange={handleInputChange} required
             />
           </label>
 

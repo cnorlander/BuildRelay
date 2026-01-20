@@ -1,29 +1,59 @@
+// ============================================================================
+// BUILD DETAIL PAGE
+// ============================================================================
+// Displays detailed information about a single build/job including:
+// - Job metadata (status, platform, project, timestamps)
+// - Channel configurations (Steam, CDN)
+// - CDN download links
+// - Real-time streaming log output
+// - Connection status monitoring
+// ============================================================================
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 
 export default function BuildDetailPage() {
+  // ========================================================================
+  // ROUTER & STATE SETUP
+  // ========================================================================
+  
   const router = useRouter();
-  const { buildId } = router.query;
-  const [job, setJob] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { buildId } = router.query; // Extract buildId from URL parameters
+  
+  // Job and log data state
+  const [job, setJob] = useState(null); // Current job/build object
+  const [entries, setEntries] = useState([]); // Array of log entries from stream
+  const [connected, setConnected] = useState(false); // SSE connection status
+  const [error, setError] = useState(null); // Error messages from API or stream
+  const [loading, setLoading] = useState(true); // Initial data loading state
 
+  // ========================================================================
+  // EFFECT: Initialize and manage job data and streaming
+  // ========================================================================
+  // Runs when buildId changes; fetches job data and starts streaming if needed
   useEffect(() => {
-    if (!buildId) return;
+    if (!buildId) return; // Wait for buildId to be available from router
 
-    let abortController = null;
-    let reconnectTimeout = null;
+    // Cleanup references for stream and reconnection attempts
+    let abortController = null; // Used to cancel fetch streams
+    let reconnectTimeout = null; // Used to cancel reconnection attempts
 
-    const streamKey = `job_stream:${buildId}`;
+    const streamKey = `job_stream:${buildId}`; // Redis stream key for this job's logs
 
+    // ====================================================================
+    // FUNCTION: Load job metadata and initialize logging
+    // ====================================================================
+    // 1. Fetches all jobs from API and finds the matching buildId
+    // 2. Loads historical log entries from Redis stream
+    // 3. If job is still running, initiates real-time log streaming
+    // 4. Handles errors and updates UI state accordingly
     const loadJobAndContent = async () => {
       try {
-        // Fetch job details
+        // Fetch job details from API
+        // Includes all job states: queued, running, and complete
         const jobResponse = await fetch(`/api/jobs`, {
-          credentials: 'include',
+          credentials: 'include', // Send auth cookies
         });
 
         if (!jobResponse.ok) {
@@ -31,16 +61,18 @@ export default function BuildDetailPage() {
         }
 
         const jobsData = await jobResponse.json();
+        // Combine all job lists into a single searchable array
         const allJobs = [
           ...jobsData.jobs.queuedJobs,
           ...jobsData.jobs.runningJobs,
           ...jobsData.jobs.completeJobs,
         ];
 
+        // Find the specific job matching this buildId
         const currentJob = allJobs.find(j => j.id === buildId);
         setJob(currentJob || {});
 
-        // Load stream history
+        // Load historical log entries from Redis stream
         const historyResponse = await fetch(`/api/stream-history?stream=${streamKey}`, {
           credentials: 'include',
         });
@@ -50,12 +82,14 @@ export default function BuildDetailPage() {
         }
 
         const historyData = await historyResponse.json();
+        // Reverse to show oldest logs first in display
         setEntries(historyData.entries.reverse());
 
-        // If job is not complete, start streaming
+        // Start live streaming only if job is still in progress
         if (currentJob && currentJob.status !== 'complete' && currentJob.status !== 'failed') {
           await streamNewEntries(historyData.lastId);
         } else {
+          // Job is already complete, no need to stream
           setLoading(false);
         }
       } catch (err) {
@@ -64,11 +98,23 @@ export default function BuildDetailPage() {
       }
     };
 
+    // ====================================================================
+    // FUNCTION: Stream new log entries in real-time
+    // ====================================================================
+    // Uses Server-Sent Events (SSE) to receive live log updates
+    // - Establishes persistent connection to /api/stream endpoint
+    // - Reads log entries as they're emitted by the backend
+    // - Handles parsing of Server-Sent Event format (data: {...})
+    // - Auto-reconnects on connection failure (3 second delay)
+    // - Can be cancelled via abortController signal
     const streamNewEntries = async (startFromId) => {
       try {
         abortController = new AbortController();
 
+        // Build stream URL with query parameters
         const streamUrl = new URL('/api/stream', window.location.href);
+        // startId tells backend where to start reading from Redis stream
+        // '$' means start from the latest messages
         if (startFromId && startFromId !== '0-0') {
           streamUrl.searchParams.set('startId', startFromId);
         } else {
@@ -78,21 +124,24 @@ export default function BuildDetailPage() {
 
         const response = await fetch(streamUrl.toString(), {
           credentials: 'include',
-          signal: abortController.signal,
+          signal: abortController.signal, // Allow cancellation
         });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
+        // Connection established successfully
         setConnected(true);
         setLoading(false);
         setError(null);
 
+        // Read streaming data from response body
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = '';
+        let buffer = ''; // Buffer for incomplete lines
 
+        // Read stream chunks until connection closes
         while (true) {
           const { done, value } = await reader.read();
 
@@ -100,47 +149,60 @@ export default function BuildDetailPage() {
             break;
           }
 
+          // Decode chunk and add to buffer
           const chunk = decoder.decode(value, { stream: true });
 
           buffer += chunk;
+          // Split on newlines to process complete messages
           const lines = buffer.split('\n');
 
+          // Keep incomplete line in buffer for next iteration
           buffer = lines.pop() || '';
 
+          // Process each complete line
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
 
             if (line.trim() === '') {
-              continue;
+              continue; // Skip empty lines
             }
 
+            // Check for Server-Sent Event format (data: {...})
             if (line.startsWith('data: ')) {
               try {
+                // Parse JSON message from SSE data
                 const jsonStr = line.slice(6);
                 const message = JSON.parse(jsonStr);
 
+                // Handle different message types
                 if (message.type === 'entry') {
+                  // Add new log entry to the beginning of the array
                   setEntries((prev) => {
                     const newEntries = [message, ...prev];
                     return newEntries;
                   });
                 } else if (message.type === 'error') {
+                  // Handle stream error messages
                   setError(message.message);
                 }
               } catch (parseErr) {
-                // Ignore parse errors
+                // Ignore JSON parse errors - corrupted messages
               }
             }
           }
         }
       } catch (err) {
+        // Handle connection errors
         if (err.name === 'AbortError') {
+          // Stream was intentionally aborted (cleanup)
           return;
         }
 
+        // Connection lost - update UI and attempt reconnect
         setConnected(false);
         setError(err.message || 'Connection failed');
 
+        // Schedule reconnection attempt after 3 seconds
         reconnectTimeout = setTimeout(() => {
           if (!abortController?.signal.aborted) {
             streamNewEntries(startFromId);
@@ -149,18 +211,28 @@ export default function BuildDetailPage() {
       }
     };
 
+    // Initialize data loading
     loadJobAndContent();
 
+    // ====================================================================
+    // CLEANUP: Cancel ongoing requests on unmount or buildId change
+    // ====================================================================
+    // Prevents memory leaks and orphaned requests
     return () => {
+      // Abort any ongoing fetch streams
       if (abortController) {
         abortController.abort();
       }
+      // Cancel any pending reconnection attempts
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
     };
   }, [buildId]);
 
+  // ========================================================================
+  // GUARD: Wait for router to provide buildId before rendering
+  // ========================================================================
   if (!buildId) {
     return (
       <Layout>
@@ -171,49 +243,59 @@ export default function BuildDetailPage() {
     );
   }
 
+  // ========================================================================
+  // COMPUTED VALUES
+  // ========================================================================
+  // Determine if job is actively streaming (still running)
   const isStreaming = job?.status !== 'complete' && job?.status !== 'failed';
+  // Extract CDN download URLs from job results
   const cdnUrls = job?.upload_results?.cdn || [];
 
+  // ========================================================================
+  // RENDER: Build detail view with metadata and logs
+  // ========================================================================
   return (
     <Layout>
-      <div className="container">
+      <div className="build-detail-container">
         <h1>Build: {job?.project || buildId}</h1>
 
-        {/* Metadata Block */}
-        <div className="metadata-block">
-          <div className="metadata-row">
-            <div className="metadata-item">
+        {/* ================================================================
+            METADATA SECTION: Job information, timestamps, channels
+            ================================================================ */}
+        <div className="build-detail-metadata-block">
+          <div className="build-detail-metadata-row">
+            <div className="build-detail-metadata-item">
               <span className="label">Status</span>
-              <span className={`value status-badge status-${job?.status || 'unknown'}`}>
+              <span className={`value build-detail-status-badge status-${job?.status || 'unknown'}`}>
                 {job?.status || 'Unknown'}
               </span>
             </div>
-            <div className="metadata-item">
+            <div className="build-detail-metadata-item">
               <span className="label">Platform</span>
-              <span className="value">{job?.platform || 'N/A'}</span>
+              <span className="value\">{job?.platform || 'N/A'}</span>
             </div>
-            <div className="metadata-item">
+            <div className="build-detail-metadata-item">
               <span className="label">Project</span>
               <span className="value">{job?.project || 'N/A'}</span>
             </div>
           </div>
 
           {job?.description && (
-            <div className="metadata-row">
-              <div className="metadata-item full-width">
+            <div className="build-detail-metadata-row">
+              <div className="build-detail-metadata-item full-width">
                 <span className="label">Description</span>
                 <span className="value">{job.description}</span>
               </div>
             </div>
           )}
 
-          <div className="metadata-row">
-            <div className="metadata-item">
+          <div className="build-detail-metadata-row">
+            <div className="build-detail-metadata-item">
               <span className="label">Created</span>
               <span className="value">{new Date(job?.createdAt).toLocaleString()}</span>
             </div>
             {job?.completedAt && (
-              <div className="metadata-item">
+              <div className="build-detail-metadata-item">
                 <span className="label">Completed</span>
                 <span className="value">{new Date(job.completedAt).toLocaleString()}</span>
               </div>
@@ -221,8 +303,8 @@ export default function BuildDetailPage() {
           </div>
 
           {job?.steam_channel_labels?.length > 0 && (
-            <div className="metadata-row">
-              <div className="metadata-item full-width">
+            <div className="build-detail-metadata-row">
+              <div className="build-detail-metadata-item full-width">
                 <span className="label"><i className="fab fa-steam" style={{ marginRight: '6px' }} />Steam Channels</span>
                 <span className="value">{job.steam_channel_labels.join(', ')}</span>
               </div>
@@ -230,8 +312,8 @@ export default function BuildDetailPage() {
           )}
 
           {job?.cdn_channel_labels?.length > 0 && (
-            <div className="metadata-row">
-              <div className="metadata-item full-width">
+            <div className="build-detail-metadata-row">
+              <div className="build-detail-metadata-item full-width">
                 <span className="label"><i className="fas fa-cloud" style={{ marginRight: '6px' }} />CDN Channels</span>
                 <span className="value">{job.cdn_channel_labels.join(', ')}</span>
               </div>
@@ -239,14 +321,14 @@ export default function BuildDetailPage() {
           )}
 
           {cdnUrls.length > 0 && (
-            <div className="metadata-row">
-              <div className="metadata-item full-width">
+            <div className="build-detail-metadata-row">
+              <div className="build-detail-metadata-item full-width">
                 <span className="label"><i className="fas fa-download" style={{ marginRight: '6px' }} />CDN Downloads</span>
-                <div className="cdn-urls">
+                <div className="build-detail-cdn-urls">
                   {cdnUrls.map((cdn, idx) => (
-                    <div key={idx} className="cdn-url-item">
+                    <div key={idx} className="build-detail-cdn-url-item">
                       <strong>{cdn.channel}:</strong>
-                      <a href={cdn.url} target="_blank" rel="noopener noreferrer" className="cdn-link">
+                      <a href={cdn.url} target="_blank" rel="noopener noreferrer" className="build-detail-cdn-link">
                         <i className="fas fa-external-link-alt" style={{ marginRight: '4px' }} />
                         Download
                       </a>
@@ -258,43 +340,55 @@ export default function BuildDetailPage() {
           )}
         </div>
 
-        {/* Log Viewer */}
-        <div className="status-bar">
+        {/* ================================================================
+            LOG VIEWER SECTION: Real-time streaming log output
+            ================================================================ */}
+        {/* Connection status and entry count */}
+        <div className="build-detail-status-bar">
           {isStreaming && (
-            <span className={`status ${connected ? 'connected' : 'disconnected'}`}>
+            <span className={`build-detail-status ${connected ? 'connected' : 'disconnected'}`}>
               {connected ? '● Connected' : '● Disconnected'}
             </span>
           )}
-          <span className="entry-count">{entries.length} log entries</span>
+          <span className="build-detail-entry-count">{entries.length} log entries</span>
         </div>
 
-        {loading && <div className="loading">Loading log...</div>}
-        {error && !loading && <div className="error">Error: {error}</div>}
+        {/* Loading and error states */}
+        {loading && <div className="build-detail-loading">Loading log...</div>}
+        {error && !loading && <div className="build-detail-error">Error: {error}</div>}
 
-        <div className="entries-list">
+        {/* Log entries list */}
+        <div className="build-detail-entries-list">
           {entries.length === 0 ? (
-            <div className="no-entries">No log entries</div>
+            <div className="build-detail-no-entries">No log entries</div>
           ) : (
-            <div className="log-container">
-              <pre className="log-output">
+            <div className="build-detail-log-container">
+              <pre className="build-detail-log-output">
+                {/* Format and display log entries in reverse order (newest first) */}
                 {entries
                   .slice()
                   .reverse()
                   .map((entry, idx) => {
+                    // Check if entry is an error (level === 'e')
                     const isError = entry.data?.level === 'e';
+                    // Extract and parse timestamp
                     let timestamp = entry.data?.timestamp || '';
 
                     if (timestamp) {
                       try {
                         const date = new Date(timestamp);
+                        // Format timestamp as local time (HH:MM:SS)
                         timestamp = date.toLocaleTimeString();
                       } catch (e) {
-                        // Keep original if parse fails
+                        // Keep original timestamp if parsing fails
                       }
                     }
 
+                    // Prefix indicates log level
                     const prefix = isError ? '[ERROR]' : '[INFO]';
+                    // Remove actual newlines and replace with spaces for display
                     const line = (entry.data?.line || '').replace(/\n/g, ' ');
+                    // Format: line number (4 digits) | level | time | message
                     return `${String(idx + 1).padStart(4, ' ')} ${prefix} ${timestamp} ${line}`;
                   })
                   .join('\n')}
@@ -303,186 +397,6 @@ export default function BuildDetailPage() {
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        .container {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-
-        .metadata-block {
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 20px;
-          margin-bottom: 24px;
-        }
-
-        .metadata-row {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 20px;
-          margin-bottom: 16px;
-        }
-
-        .metadata-row:last-child {
-          margin-bottom: 0;
-        }
-
-        .metadata-item {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .metadata-item.full-width {
-          grid-column: 1 / -1;
-        }
-
-        .metadata-item .label {
-          font-size: 12px;
-          font-weight: 600;
-          color: #6b7280;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .metadata-item .value {
-          font-size: 14px;
-          color: #111827;
-        }
-
-        .status-badge {
-          display: inline-block;
-          padding: 4px 12px;
-          border-radius: 4px;
-          font-weight: 600;
-          font-size: 12px;
-          width: fit-content;
-        }
-
-        .status-badge.status-complete {
-          background: #dcfce7;
-          color: #15803d;
-        }
-
-        .status-badge.status-running {
-          background: #dbeafe;
-          color: #0c4a6e;
-        }
-
-        .status-badge.status-failed {
-          background: #fee2e2;
-          color: #7f1d1d;
-        }
-
-        .status-badge.status-Queued {
-          background: #fef3c7;
-          color: #92400e;
-        }
-
-        .cdn-urls {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-top: 8px;
-        }
-
-        .cdn-url-item {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .cdn-url-item strong {
-          font-weight: 600;
-          color: #374151;
-        }
-
-        .cdn-link {
-          color: #2563eb;
-          text-decoration: none;
-          padding: 4px 8px;
-          border-radius: 4px;
-          transition: background-color 0.2s;
-          font-size: 13px;
-        }
-
-        .cdn-link:hover {
-          background-color: #dbeafe;
-        }
-
-        .status-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 16px;
-          background: #f5f5f5;
-          border-radius: 6px;
-          margin-bottom: 20px;
-          font-size: 14px;
-        }
-
-        .status {
-          font-weight: 500;
-        }
-
-        .status.connected {
-          color: #22c55e;
-        }
-
-        .status.disconnected {
-          color: #ef4444;
-        }
-
-        .entry-count {
-          color: #666;
-        }
-
-        .loading {
-          text-align: center;
-          padding: 40px;
-          color: #666;
-          font-size: 16px;
-        }
-
-        .error {
-          background: #fee2e2;
-          color: #991b1b;
-          padding: 12px 16px;
-          border-radius: 6px;
-          margin-bottom: 20px;
-          font-size: 14px;
-        }
-
-        .no-entries {
-          text-align: center;
-          padding: 40px;
-          color: #999;
-        }
-
-        .log-container {
-          border-radius: 4px;
-          overflow: hidden;
-          background: #f6f8fa;
-          max-height: 70vh;
-        }
-
-        .log-output {
-          margin: 0;
-          padding: 12px;
-          font-size: 13px;
-          font-family: 'Courier New', monospace;
-          white-space: pre;
-          overflow: auto;
-          color: #333;
-          background: #f6f8fa;
-          border-radius: 4px;
-          line-height: 1.5;
-          max-height: 70vh;
-        }
-      `}</style>
     </Layout>
   );
 }
