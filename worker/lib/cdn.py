@@ -2,8 +2,8 @@ import os
 import boto3
 from pathlib import Path
 from typing import Optional, Dict, Any
-from libs.zip import zip_build
-from libs.streams import LogStream
+from lib.zip import zip_build
+from lib.streams import LogStream
 
 
 def prepare_cdn_file(job: Dict[str, Any], stream: LogStream) -> str:

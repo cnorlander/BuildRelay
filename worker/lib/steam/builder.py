@@ -2,7 +2,7 @@
 
 import os
 from typing import Optional
-from libs.streams import LogStream
+from lib.streams import LogStream
 from .templates import VDF_TEMPLATE, DEPOT_TEMPLATE
 
 

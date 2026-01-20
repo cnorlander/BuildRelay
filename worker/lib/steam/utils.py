@@ -2,15 +2,12 @@
 
 import os
 from typing import Dict, Any, Optional
-from libs.streams import LogStream
-from libs.zip import unzip_build
+from lib.streams import LogStream
+from lib.zip import unzip_build
 from .builder import SteamVDFBuilder
 from .uploader import SteamUploader
 
 
-# ===============================================================
-# Build Preparation
-# ===============================================================
 
 def prepare_steam_build(job: Dict[str, Any], stream: LogStream) -> str:
     """Prepare build directory for Steam upload (unzip if needed).
@@ -55,9 +52,6 @@ def prepare_steam_build(job: Dict[str, Any], stream: LogStream) -> str:
         raise Exception(f"Invalid path: {absolute_build_path}")
 
 
-# ===============================================================
-# Multi-Channel Upload Orchestration
-# ===============================================================
 
 def handle_steam_upload(job: Dict[str, Any], file_path: str, stream: LogStream) -> Dict[str, Any]:
     """Handle Steam build uploads for all configured Steam channels.

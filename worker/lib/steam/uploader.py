@@ -3,7 +3,7 @@
 import os
 import subprocess
 from typing import Dict, Any, Optional
-from libs.streams import LogStream
+from lib.streams import LogStream
 
 
 # ===============================================================

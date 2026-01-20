@@ -4,11 +4,11 @@ import sys
 import redis
 from typing import Optional, Dict, Any
 from datetime import datetime
-from libs.streams import LogStream
-from libs.cdn import CDNUploader, prepare_cdn_file
-from libs.zip import zip_build, unzip_build
-from libs.steam import SteamUploader, SteamVDFBuilder, prepare_steam_build, handle_steam_upload
-from libs.notifications import NotificationService
+from lib.streams import LogStream
+from lib.cdn import CDNUploader, prepare_cdn_file
+from lib.zip import zip_build, unzip_build
+from lib.steam import SteamUploader, SteamVDFBuilder, prepare_steam_build, handle_steam_upload
+from lib.notifications import NotificationService
 
 # ===============================================================
 # Conection & Queue Setup
