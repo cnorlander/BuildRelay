@@ -60,7 +60,7 @@ Before deploying to production, you MUST update these environment variables in `
 ### Build Directory Permissions
 - Restrict access to `BUILD_INGEST_PATH` (/builds) to the application user only
 - Ensure no other users can read/write to this directory
-- Regular backups of builds directory
+- Regular backups of builds directory if you care about the data in there
 
 ### Path Validation
 - ingestPath parameter is validated to prevent directory traversal

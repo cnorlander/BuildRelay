@@ -1,7 +1,7 @@
 import shutil
 import os
 import zipfile
-from libs.streams import LogStream
+from lib.streams import LogStream
 
 def zip_build(job_id: str, directory_path: str, stream: LogStream) -> str:
     """
@@ -14,9 +14,9 @@ def zip_build(job_id: str, directory_path: str, stream: LogStream) -> str:
     Returns:
         Path to the created zip file
     """
-    # Use TEMP_BUILD_PATH from environment or default to /tmp/builds
-    os.environ.get("TEMP_BUILD_PATH", "/tmp/builds")
-    zip_path = f"/tmp/{job_id}.zip"
+    # Use TEMP_BUILD_PATH from environment or default to /tmp
+    temp_path = os.environ.get("TEMP_BUILD_PATH", "/tmp")
+    zip_path = f"{temp_path}/{job_id}.zip"
 
     # Make the zip archive
     try:

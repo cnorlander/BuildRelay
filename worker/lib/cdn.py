@@ -2,6 +2,42 @@ import os
 import boto3
 from pathlib import Path
 from typing import Optional, Dict, Any
+from libs.zip import zip_build
+from libs.streams import LogStream
+
+
+def prepare_cdn_file(job: Dict[str, Any], stream: LogStream) -> str:
+    """Prepare build file for CDN upload (zip if directory).
+    
+    Args:
+        job: The job dictionary containing ingest path information
+        stream: LogStream instance for logging progress
+    
+    Returns:
+        Path to the file or zip archive for CDN upload
+    
+    Raises:
+        Exception: If the path does not exist or zip creation fails
+    """
+    absolute_build_path: Optional[str] = job.get("absoluteIngestPath")
+    stream.log(f"Preparing build for CDN upload from {job['ingestPath']}...")
+
+    if not absolute_build_path or not os.path.exists(absolute_build_path):
+        stream.log(f"Path does not exist: {absolute_build_path}", level="error")
+        raise Exception(f"Build path does not exist: {absolute_build_path}")
+    
+    if os.path.isfile(absolute_build_path):
+        stream.log(f"Found file: {absolute_build_path}")
+        return absolute_build_path
+    elif os.path.isdir(absolute_build_path):
+        stream.log(f"Found directory: {absolute_build_path}, creating zip archive...")
+        try:
+            return zip_build(job["id"], absolute_build_path, stream)
+        except Exception as e:
+            stream.log(f"Error creating zip: {str(e)}", level="error")
+            raise
+    else:
+        raise Exception(f"Invalid path: {absolute_build_path}")
 
 
 class CDNUploader:
