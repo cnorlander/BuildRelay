@@ -6,9 +6,10 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from lib.streams import LogStream
 from lib.cdn import CDNUploader, prepare_cdn_file
-from lib.zip import zip_build, unzip_build
+from lib.zip import zip_build
 from lib.steam import SteamUploader, SteamVDFBuilder, prepare_steam_build, handle_steam_upload
 from lib.notifications import NotificationService
+from lib.unity_cloud import download_unity_cloud_artifact
 
 # ===============================================================
 # Conection & Queue Setup
@@ -41,18 +42,33 @@ notification_service: NotificationService = NotificationService()
 # Utility Functions
 # ===============================================================
 
-def abort_job(job: Dict[str, Any], stream: LogStream, error_message: str) -> None:
+def abort_job(job: Dict[str, Any], stream: LogStream, error_message: str, current_job_str: str = None) -> None:
     """Abort the job, log the error, and move it to the failed jobs list.
     
     Args:
         job: The job dictionary to abort
         stream: LogStream instance for logging
         error_message: The error message to log and store
+        current_job_str: The JSON string of the job as it was stored in running_jobs (optional)
     """
     stream.log(f"Aborting job {job['id']}: {error_message}", level="error")
     print(f"Error aborting job {job['id']}: {error_message}", file=sys.stderr)
-    # Note: It's important to remove from running jobs before altering the job dict to allow proper matching.
-    kv_store.lrem(RUNNING_JOBS, 0, json.dumps(job))
+    
+    # Remove from running jobs - try exact match first, then by ID
+    if current_job_str:
+        kv_store.lrem(RUNNING_JOBS, 0, current_job_str)
+    else:
+        # Remove the job by ID if exact match not provided
+        running_jobs_raw = kv_store.lrange(RUNNING_JOBS, 0, -1)
+        for job_str in running_jobs_raw:
+            try:
+                stored_job = json.loads(job_str)
+                if stored_job.get('id') == job['id']:
+                    kv_store.lrem(RUNNING_JOBS, 0, job_str)
+                    break
+            except json.JSONDecodeError:
+                continue
+    
     job["status"] = "failed"
     job["error"] = error_message
     kv_store.rpush(FAILED_JOBS, json.dumps(job))
@@ -87,6 +103,28 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
         "cdn": [],
         "steam": []
     }
+    
+    # ================================================================
+    # Handle Unity Cloud Build artifact downloads
+    # ================================================================
+    stream.log(f"Job source: {job.get('source')}")
+    if job.get("source") == "unity-cloud":
+        try:
+            stream.log("Processing Unity Cloud Build job...")
+            
+            # Download the artifact from Unity Cloud Build
+            artifact_path = download_unity_cloud_artifact(job, stream)
+            stream.log(f"Downloaded artifact: {artifact_path}")
+            
+            # Set ingest paths for the downstream steam/cdn functions
+            # They will handle extraction if needed (prepare_steam_build handles zips,
+            # prepare_cdn_file can work with files or directories)
+            job["ingestPath"] = artifact_path
+            job["absoluteIngestPath"] = artifact_path
+            
+        except Exception as e:
+            stream.log(f"Failed to process Unity Cloud Build artifact: {str(e)}", level="error")
+            raise
     
     # Handle CDN uploads for all configured CDN channels
     cdn_channels: list = job.get("cdn_channels", [])

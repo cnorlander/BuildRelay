@@ -312,7 +312,7 @@ export default function JobsList({ title, jobs, clearable, onClear, queueName })
                       {job.status}
                     </div>
                     {/* Relative time (e.g., "2h ago") */}
-                    {timeElapsed && (
+                    {mounted && timeElapsed && (
                       <div style={{
                         fontSize: '12px',
                         color: '#9ca3af'
