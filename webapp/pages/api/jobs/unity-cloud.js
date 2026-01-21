@@ -17,28 +17,75 @@ const { randomUUID } = require('crypto');
 //   - POST: Submit a new job from Unity Cloud Build webhook
 // ============================================================================
 
+// Middleware to capture raw body for webhook signature verification
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk.toString();
+    });
+    req.on('end', () => {
+      resolve(data);
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // ========================================================================
   // Authentication & Verification
   // ========================================================================
   
+  console.log('[Unity Cloud] Request received', { method: req.method, hasAuth: !!req.headers['authorization'] });
+  
   // For POST requests from Unity Cloud webhooks, verify HMAC signature
   // Otherwise use standard API authentication
   if (req.method === 'POST') {
-    const signature = req.headers['x-signature'];
+    const authHeader = req.headers['authorization'];
     const secret = process.env.UNITY_CLOUD_WEBHOOK_SECRET;
 
-    // If webhook secret is configured and signature provided, verify it
-    if (secret && signature) {
-      // Get raw body for signature verification
-      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    console.log('[Unity Cloud] Secret configured:', !!secret);
+    console.log('[Unity Cloud] Auth header:', authHeader?.substring(0, 50));
+
+    // If webhook secret is configured and authorization header provided, verify it
+    if (secret && authHeader) {
+      console.log('[Unity Cloud] Verifying webhook signature...');
+      // Capture raw body for signature verification
+      const rawBody = await getRawBody(req);
       
-      if (!verifyWebhookSignature(rawBody, signature, secret)) {
+      console.log('[Unity Cloud] Raw body length:', rawBody.length);
+      console.log('[Unity Cloud] Raw body sample:', rawBody.substring(0, 100));
+      
+      if (!verifyWebhookSignature(rawBody, authHeader, secret)) {
+        console.log('[Unity Cloud] Signature verification failed');
         return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+      
+      // Parse the body for use in the rest of the handler
+      try {
+        req.body = JSON.parse(rawBody);
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid JSON' });
       }
     } else if (!validateAuth(req)) {
       // Fall back to standard auth if not a webhook request
+      console.log('[Unity Cloud] Falling back to standard auth');
       return res.status(401).json({ error: 'Invalid or missing authentication' });
+    } else {
+      console.log('[Unity Cloud] Standard auth passed');
+      // Parse body for standard auth requests
+      try {
+        const rawBody = await getRawBody(req);
+        req.body = JSON.parse(rawBody);
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid JSON' });
+      }
     }
   } else if (!validateAuth(req)) {
     // Standard auth for non-POST methods
@@ -142,6 +189,8 @@ export default async function handler(req, res) {
         steam_channels: foundSteamChannels,
         cdn_channel_labels: mapping.cdn_channel_labels,
         cdn_channels: foundCdnChannels,
+        ingestPath: null, // Will be set by worker after downloading artifact
+        absoluteIngestPath: null, // Will be set by worker after downloading artifact
         metadata: payload, // Store entire webhook payload as metadata
       };
 

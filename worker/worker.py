@@ -42,18 +42,33 @@ notification_service: NotificationService = NotificationService()
 # Utility Functions
 # ===============================================================
 
-def abort_job(job: Dict[str, Any], stream: LogStream, error_message: str) -> None:
+def abort_job(job: Dict[str, Any], stream: LogStream, error_message: str, current_job_str: str = None) -> None:
     """Abort the job, log the error, and move it to the failed jobs list.
     
     Args:
         job: The job dictionary to abort
         stream: LogStream instance for logging
         error_message: The error message to log and store
+        current_job_str: The JSON string of the job as it was stored in running_jobs (optional)
     """
     stream.log(f"Aborting job {job['id']}: {error_message}", level="error")
     print(f"Error aborting job {job['id']}: {error_message}", file=sys.stderr)
-    # Note: It's important to remove from running jobs before altering the job dict to allow proper matching.
-    kv_store.lrem(RUNNING_JOBS, 0, json.dumps(job))
+    
+    # Remove from running jobs - try exact match first, then by ID
+    if current_job_str:
+        kv_store.lrem(RUNNING_JOBS, 0, current_job_str)
+    else:
+        # Remove the job by ID if exact match not provided
+        running_jobs_raw = kv_store.lrange(RUNNING_JOBS, 0, -1)
+        for job_str in running_jobs_raw:
+            try:
+                stored_job = json.loads(job_str)
+                if stored_job.get('id') == job['id']:
+                    kv_store.lrem(RUNNING_JOBS, 0, job_str)
+                    break
+            except json.JSONDecodeError:
+                continue
+    
     job["status"] = "failed"
     job["error"] = error_message
     kv_store.rpush(FAILED_JOBS, json.dumps(job))
@@ -92,6 +107,7 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
     # ================================================================
     # Handle Unity Cloud Build artifact downloads
     # ================================================================
+    stream.log(f"Job source: {job.get('source')}")
     if job.get("source") == "unity-cloud":
         try:
             stream.log("Processing Unity Cloud Build job...")
