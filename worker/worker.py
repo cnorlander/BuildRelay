@@ -3,7 +3,7 @@ import os
 import sys
 import redis
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from lib.streams import LogStream
 from lib.cdn import CDNUploader, prepare_cdn_file
 from lib.zip import zip_build, unzip_build
@@ -76,7 +76,7 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
     """
     # Update the job status to running and keep a clean copy of the current job state
     job["status"] = "running"
-    job["startedAt"] = datetime.utcnow().isoformat() + "Z"
+    job["startedAt"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     current_job: str = json.dumps(job)
 
     # Add the job to the running jobs list
@@ -137,7 +137,7 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
     # Remove job from running and add to complete marking it complete.
     kv_store.lrem(RUNNING_JOBS, 0, current_job)
     job["status"] = "complete"
-    job["completedAt"] = datetime.utcnow().isoformat() + "Z"
+    job["completedAt"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     kv_store.rpush(COMPLETE_JOBS, json.dumps(job))
     print("Processed job:", job.get("id"))
     

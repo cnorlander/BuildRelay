@@ -1,5 +1,21 @@
 version: '3.8'
 services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    env_file:
+      - .env
+    environment:
+      - NGINX_MODE=${NGINX_MODE:-development}
+      - HOSTNAME=${HOSTNAME:-localhost}
+    volumes:
+      - ./builds:/builds
+      - /etc/letsencrypt:/etc/letsencrypt
+      - nginx_certbot:/var/www/certbot
   app:
     build: ./webapp
     ports:
@@ -33,3 +49,4 @@ services:
 volumes:
   valkey_data:
   steam_config:
+  nginx_certbot:

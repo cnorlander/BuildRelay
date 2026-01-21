@@ -128,10 +128,11 @@ export default function Home({ initialJobs, initialError }) {
  */
 export async function getServerSideProps(context) {
   try {
-    // Reconstruct full URL for server-side fetch
-    const protocol = context.req.headers['x-forwarded-proto'] || 'http'
-    const host = context.req.headers['x-forwarded-host'] || context.req.headers.host
-    const baseUrl = `${protocol}://${host}`
+    // Use internal Docker service URL for server-side fetches
+    // This is more reliable than trying to reach through the proxy
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? `http://localhost:3000`
+      : `http://localhost:3000`
 
     // Fetch jobs from API with authentication cookies
     const response = await fetch(`${baseUrl}/api/jobs`, {
