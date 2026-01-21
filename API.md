@@ -145,6 +145,60 @@ Method GET Not Allowed
 
 Monitor job status through the BuildRelay dashboard or by polling job endpoints.
 
+### Unity Cloud Build Mappings
+
+**Endpoint:** `POST /api/unity-cloud-mappings`
+
+Create a mapping that links a Unity build target to Steam and/or CDN channels for automated distribution.
+
+#### Request
+
+```bash
+curl -X POST http://localhost:3000/api/unity-cloud-mappings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "build_target": "iOS",
+    "project": "My Game",
+    "description": "iOS production build",
+    "steam_channel_labels": ["Steam Label"],
+    "cdn_channel_labels": ["CDN Label"]
+  }'
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `build_target` | string | ✓ | Unique identifier for build target (e.g., "iOS", "Android", "Windows") |
+| `project` | string | ✓ | Project name |
+| `description` | string | | Optional description |
+| `steam_channel_labels` | array | | Steam channels to upload to |
+| `cdn_channel_labels` | array | | CDN channels to upload to |
+
+#### Response (Success - 201)
+
+```json
+{
+  "mapping": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "build_target": "iOS",
+    "project": "My Game",
+    "description": "iOS production build",
+    "steam_channel_labels": ["Steam Label"],
+    "cdn_channel_labels": ["CDN Label"],
+    "createdAt": "2026-01-20T15:30:00.000Z"
+  }
+}
+```
+
+#### Other Methods
+
+- `GET /api/unity-cloud-mappings` - Retrieve all mappings
+- `PUT /api/unity-cloud-mappings/{id}` - Update a mapping
+- `DELETE /api/unity-cloud-mappings/{id}` - Delete a mapping
+
+## Job Lifecycle
+
 ## Rate Limiting
 
 Currently no rate limiting is implemented. This may be added in future versions.

@@ -6,9 +6,10 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from lib.streams import LogStream
 from lib.cdn import CDNUploader, prepare_cdn_file
-from lib.zip import zip_build, unzip_build
+from lib.zip import zip_build
 from lib.steam import SteamUploader, SteamVDFBuilder, prepare_steam_build, handle_steam_upload
 from lib.notifications import NotificationService
+from lib.unity_cloud import download_unity_cloud_artifact
 
 # ===============================================================
 # Conection & Queue Setup
@@ -87,6 +88,27 @@ def handle_job(job: Dict[str, Any], stream: LogStream) -> None:
         "cdn": [],
         "steam": []
     }
+    
+    # ================================================================
+    # Handle Unity Cloud Build artifact downloads
+    # ================================================================
+    if job.get("source") == "unity-cloud":
+        try:
+            stream.log("Processing Unity Cloud Build job...")
+            
+            # Download the artifact from Unity Cloud Build
+            artifact_path = download_unity_cloud_artifact(job, stream)
+            stream.log(f"Downloaded artifact: {artifact_path}")
+            
+            # Set ingest paths for the downstream steam/cdn functions
+            # They will handle extraction if needed (prepare_steam_build handles zips,
+            # prepare_cdn_file can work with files or directories)
+            job["ingestPath"] = artifact_path
+            job["absoluteIngestPath"] = artifact_path
+            
+        except Exception as e:
+            stream.log(f"Failed to process Unity Cloud Build artifact: {str(e)}", level="error")
+            raise
     
     # Handle CDN uploads for all configured CDN channels
     cdn_channels: list = job.get("cdn_channels", [])

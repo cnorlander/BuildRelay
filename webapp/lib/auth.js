@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { createHmac } = require('crypto');
 const clientPromise = require('./valkey');
 
 // JWT_SECRET is REQUIRED in production - no default fallback
@@ -88,3 +89,23 @@ export function validateAuth(req) {
 
   return false;
 }
+
+// Verify HMAC-SHA256 webhook signature
+// Used by services like Unity Cloud Build that provide signed webhooks
+export function verifyWebhookSignature(body, signature, secret) {
+  if (!secret || !signature) {
+    return false;
+  }
+
+  try {
+    const computed = createHmac('sha256', secret)
+      .update(body)
+      .digest('hex');
+
+    return computed === signature;
+  } catch (err) {
+    console.error('Error verifying webhook signature:', err);
+    return false;
+  }
+}
+
