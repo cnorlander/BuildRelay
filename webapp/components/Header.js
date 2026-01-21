@@ -21,6 +21,7 @@ export default function Header() {
       <nav className="nav-bar">
         <div className="nav-left">
           <Link href="/">Home</Link>
+          <Link href="/unity-cloud">Unity Cloud</Link>
           <div className="nav-relative">
             <button
               onClick={() => setShowChannelsDropdown(!showChannelsDropdown)}

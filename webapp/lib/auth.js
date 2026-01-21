@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { createHmac } = require('crypto');
 const clientPromise = require('./valkey');
 
 // JWT_SECRET is REQUIRED in production - no default fallback
@@ -88,3 +89,46 @@ export function validateAuth(req) {
 
   return false;
 }
+
+// Verify HMAC-SHA256 webhook signature
+// Used by services like Unity Cloud Build that provide signed webhooks
+// Unity Cloud Build format: UNITY-HMAC-SHA256 Timestamp=<ts>; Signature=<sig>
+// Signed content: "Timestamp=<ts>.<body>"
+export function verifyWebhookSignature(body, authHeader, secret) {
+  if (!secret || !authHeader) {
+    console.error('[Webhook] Missing secret or authorization header', { secret: !!secret, authHeader: !!authHeader });
+    return false;
+  }
+
+  try {
+    // Parse authorization header: "UNITY-HMAC-SHA256 Timestamp=<ts>; Signature=<sig>"
+    const match = authHeader.match(/Timestamp=(\d+);\s*Signature=([a-f0-9]+)/i);
+    if (!match) {
+      console.error('[Webhook] Failed to parse authorization header:', authHeader);
+      return false;
+    }
+
+    const timestamp = match[1];
+    const providedSignature = match[2];
+
+    // Reconstruct the signed message format: "Timestamp=<ts>.<body>"
+    const signedMessage = `Timestamp=${timestamp}.${body}`;
+
+    // Compute HMAC-SHA256
+    const computed = createHmac('sha256', secret)
+      .update(signedMessage)
+      .digest('hex');
+
+    console.log('[Webhook] Signature verification:', {
+      providedSignature,
+      computed,
+      match: computed === providedSignature,
+    });
+
+    return computed === providedSignature;
+  } catch (err) {
+    console.error('Error verifying webhook signature:', err);
+    return false;
+  }
+}
+
